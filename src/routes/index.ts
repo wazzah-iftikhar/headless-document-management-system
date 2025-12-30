@@ -1,10 +1,8 @@
 // Main routes aggregator
 import { Elysia } from "elysia";
+import { documentRoutes } from "./document.routes";
 
 export const setupRoutes = (app: Elysia) => {
-  // Routes will be registered here
-  // app.use(authRoutes);
-  // app.use(documentRoutes);
-  return app;
+  return app.use(documentRoutes);
 };
 

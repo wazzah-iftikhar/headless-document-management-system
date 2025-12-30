@@ -1,2 +1,1 @@
-// Database models will be exported from here
-
+export * from "./document.model";
