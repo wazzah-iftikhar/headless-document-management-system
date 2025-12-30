@@ -1,6 +1,10 @@
 import { Elysia } from "elysia";
 import { setupRoutes } from "./routes";
 import { config } from "./config/app";
+import { initDatabase } from "./config/init-db";
+
+// Initialize database on startup
+await initDatabase();
 
 const app = new Elysia()
   .get("/health", () => ({
