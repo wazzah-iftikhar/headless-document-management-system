@@ -1,5 +1,5 @@
 import { db } from "./database";
-import { documents } from "../models";
+import { documents, downloadTokens } from "../models";
 import { sql } from "drizzle-orm";
 
 /**
@@ -19,6 +19,18 @@ export async function initDatabase() {
         metadata_tags TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create download_tokens table
+    await db.run(sql`
+      CREATE TABLE IF NOT EXISTS download_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        token TEXT NOT NULL UNIQUE,
+        document_id INTEGER NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        used_at TEXT
       )
     `);
 

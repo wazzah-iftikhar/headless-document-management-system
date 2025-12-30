@@ -1,9 +1,10 @@
 import { db } from "../config/database";
-import { documents } from "../models";
+import { documents, downloadTokens } from "../models";
 import { config } from "../config/app";
 import { successResponse, errorResponse } from "../utils/response";
 import { uploadDocumentSchema } from "../validations/document.schema";
-import { eq } from "drizzle-orm";
+import { eq, and, gt } from "drizzle-orm";
+import { generateDownloadToken } from "../utils/token";
 
 export class DocumentController {
   /**
@@ -347,6 +348,148 @@ export class DocumentController {
       return {
         status: 500,
         body: errorResponse("Failed to search documents", error),
+      };
+    }
+  }
+
+  /**
+   * Generate a short-lived download link for a document
+   */
+  static async generateDownloadLink(documentId: number) {
+    try {
+      // Check if document exists
+      const [document] = await db
+        .select()
+        .from(documents)
+        .where(eq(documents.id, documentId))
+        .limit(1);
+
+      if (!document) {
+        return {
+          status: 404,
+          body: errorResponse("Document not found"),
+        };
+      }
+
+      // Generate secure token
+      const token = generateDownloadToken();
+
+      // Calculate expiration time
+      const expiresAt = new Date();
+      expiresAt.setMinutes(
+        expiresAt.getMinutes() + config.downloadLinkExpiryMinutes
+      );
+
+      // Save token to database
+      const [downloadToken] = await db
+        .insert(downloadTokens)
+        .values({
+          token,
+          documentId,
+          expiresAt: expiresAt.toISOString(),
+        })
+        .returning();
+
+      if (!downloadToken) {
+        return {
+          status: 500,
+          body: errorResponse("Failed to generate download link"),
+        };
+      }
+
+      // Generate download URL
+      const downloadUrl = `/documents/download/${token}`;
+
+      return {
+        status: 200,
+        body: successResponse(
+          {
+            downloadUrl,
+            token,
+            expiresAt: downloadToken.expiresAt,
+            expiresInMinutes: config.downloadLinkExpiryMinutes,
+            documentId: document.id,
+            originalFilename: document.originalFilename,
+          },
+          "Download link generated successfully"
+        ),
+      };
+    } catch (error) {
+      console.error("Generate download link error:", error);
+      return {
+        status: 500,
+        body: errorResponse("Failed to generate download link", error),
+      };
+    }
+  }
+
+  /**
+   * Download document using a token
+   */
+  static async downloadDocumentByToken(token: string) {
+    try {
+      // Find valid token
+      const now = new Date().toISOString();
+      const [tokenRecord] = await db
+        .select()
+        .from(downloadTokens)
+        .where(
+          and(
+            eq(downloadTokens.token, token),
+            gt(downloadTokens.expiresAt, now)
+          )
+        )
+        .limit(1);
+
+      if (!tokenRecord) {
+        return {
+          status: 404,
+          body: errorResponse("Invalid or expired download link"),
+        };
+      }
+
+      // Get document
+      const [document] = await db
+        .select()
+        .from(documents)
+        .where(eq(documents.id, tokenRecord.documentId))
+        .limit(1);
+
+      if (!document) {
+        return {
+          status: 404,
+          body: errorResponse("Document not found"),
+        };
+      }
+
+      // Check if file exists
+      const file = Bun.file(document.filePath);
+      if (!(await file.exists())) {
+        return {
+          status: 404,
+          body: errorResponse("File not found on server"),
+        };
+      }
+
+      // Mark token as used (optional - you can remove this if you want to allow multiple downloads)
+      await db
+        .update(downloadTokens)
+        .set({ usedAt: new Date().toISOString() })
+        .where(eq(downloadTokens.id, tokenRecord.id));
+
+      // Return file for download using Bun's file response
+      return new Response(file, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="${document.originalFilename}"`,
+          "Content-Length": document.fileSize.toString(),
+        },
+      });
+    } catch (error) {
+      console.error("Download document error:", error);
+      return {
+        status: 500,
+        body: errorResponse("Failed to download document", error),
       };
     }
   }

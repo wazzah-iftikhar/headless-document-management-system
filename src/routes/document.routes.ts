@@ -191,4 +191,46 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
         id: t.String(),
       }),
     }
+  )
+  .post(
+    "/:id/download-link",
+    async ({ params }) => {
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        return {
+          status: 400,
+          body: {
+            success: false,
+            message: "Invalid document ID",
+          },
+        };
+      }
+      return DocumentController.generateDownloadLink(id);
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+    }
+  )
+  .get(
+    "/download/:token",
+    async ({ params }) => {
+      const { token } = params;
+      if (!token) {
+        return {
+          status: 400,
+          body: {
+            success: false,
+            message: "Download token is required",
+          },
+        };
+      }
+      return DocumentController.downloadDocumentByToken(token);
+    },
+    {
+      params: t.Object({
+        token: t.String(),
+      }),
+    }
   );
