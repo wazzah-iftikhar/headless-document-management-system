@@ -1,10 +1,6 @@
-import { db } from "../config/database";
-import { documents, downloadTokens } from "../models";
-import { config } from "../config/app";
+import { DocumentService } from "../services/document.service";
 import { successResponse, errorResponse } from "../utils/response";
-import { uploadDocumentSchema } from "../validations/document.schema";
-import { eq, and, gt } from "drizzle-orm";
-import { generateDownloadToken } from "../utils/token";
+import { config } from "../config/app";
 
 export class DocumentController {
   /**
@@ -12,62 +8,7 @@ export class DocumentController {
    */
   static async uploadDocument(file: File, metadataTags?: string[]) {
     try {
-      // Validate file type
-      if (file.type !== "application/pdf") {
-        return {
-          status: 400,
-          body: errorResponse("Only PDF files are allowed"),
-        };
-      }
-
-      // Validate file size
-      if (file.size > config.maxFileSize) {
-        return {
-          status: 400,
-          body: errorResponse(
-            `File size exceeds maximum allowed size of ${config.maxFileSize / 1024 / 1024}MB`
-          ),
-        };
-      }
-
-      // Ensure uploads directory exists
-      const uploadDir = Bun.file(config.uploadPath);
-      if (!(await uploadDir.exists())) {
-        await Bun.$`mkdir -p ${config.uploadPath}`;
-      }
-
-      // Generate unique filename
-      const timestamp = Date.now();
-      const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-      const filename = `${timestamp}_${sanitizedOriginalName}`;
-      const filePath = `${config.uploadPath}/${filename}`;
-
-      // Save file to disk
-      const arrayBuffer = await file.arrayBuffer();
-      await Bun.write(filePath, arrayBuffer);
-
-      // Parse metadata tags
-      const tags = metadataTags || [];
-      const metadataTagsJson = JSON.stringify(tags);
-
-      // Save document metadata to database
-      const [document] = await db
-        .insert(documents)
-        .values({
-          filename,
-          originalFilename: file.name,
-          filePath,
-          fileSize: file.size,
-          metadataTags: metadataTagsJson,
-        })
-        .returning();
-
-      if (!document) {
-        return {
-          status: 500,
-          body: errorResponse("Failed to save document to database"),
-        };
-      }
+      const document = await DocumentService.createDocument(file, metadataTags);
 
       return {
         status: 201,
@@ -77,17 +18,22 @@ export class DocumentController {
             filename: document.filename,
             originalFilename: document.originalFilename,
             fileSize: document.fileSize,
-            metadataTags: tags,
+            metadataTags: metadataTags || [],
             createdAt: document.createdAt,
           },
           "Document uploaded successfully"
         ),
       };
     } catch (error) {
-      console.error("Upload error:", error);
+      const message =
+        error instanceof Error ? error.message : "Failed to upload document";
+      const status = message.includes("Only PDF") || message.includes("size")
+        ? 400
+        : 500;
+
       return {
-        status: 500,
-        body: errorResponse("Failed to upload document", error),
+        status,
+        body: errorResponse(message),
       };
     }
   }
@@ -97,9 +43,9 @@ export class DocumentController {
    */
   static async getAllDocuments() {
     try {
-      const allDocuments = await db.select().from(documents);
+      const documents = await DocumentService.getAllDocuments();
 
-      const formattedDocuments = allDocuments.map((doc) => ({
+      const formattedDocuments = documents.map((doc) => ({
         id: doc.id,
         filename: doc.filename,
         originalFilename: doc.originalFilename,
@@ -127,18 +73,7 @@ export class DocumentController {
    */
   static async getDocumentById(id: number) {
     try {
-      const [document] = await db
-        .select()
-        .from(documents)
-        .where(eq(documents.id, id))
-        .limit(1);
-
-      if (!document) {
-        return {
-          status: 404,
-          body: errorResponse("Document not found"),
-        };
-      }
+      const document = await DocumentService.getDocumentById(id);
 
       return {
         status: 200,
@@ -155,10 +90,13 @@ export class DocumentController {
         }),
       };
     } catch (error) {
-      console.error("Get document error:", error);
+      const message =
+        error instanceof Error ? error.message : "Failed to fetch document";
+      const status = message.includes("not found") ? 404 : 500;
+
       return {
-        status: 500,
-        body: errorResponse("Failed to fetch document", error),
+        status,
+        body: errorResponse(message),
       };
     }
   }
@@ -168,65 +106,33 @@ export class DocumentController {
    */
   static async updateDocument(id: number, metadataTags?: string[]) {
     try {
-      // Check if document exists
-      const [existingDocument] = await db
-        .select()
-        .from(documents)
-        .where(eq(documents.id, id))
-        .limit(1);
-
-      if (!existingDocument) {
-        return {
-          status: 404,
-          body: errorResponse("Document not found"),
-        };
-      }
-
-      // Update metadata tags if provided
-      const updateData: { metadataTags?: string; updatedAt: string } = {
-        updatedAt: new Date().toISOString(),
-      };
-
-      if (metadataTags !== undefined) {
-        updateData.metadataTags = JSON.stringify(metadataTags);
-      }
-
-      // Update document in database
-      const [updatedDocument] = await db
-        .update(documents)
-        .set(updateData)
-        .where(eq(documents.id, id))
-        .returning();
-
-      if (!updatedDocument) {
-        return {
-          status: 500,
-          body: errorResponse("Failed to update document in database"),
-        };
-      }
+      const document = await DocumentService.updateDocument(id, metadataTags);
 
       return {
         status: 200,
         body: successResponse(
           {
-            id: updatedDocument.id,
-            filename: updatedDocument.filename,
-            originalFilename: updatedDocument.originalFilename,
-            fileSize: updatedDocument.fileSize,
-            metadataTags: updatedDocument.metadataTags
-              ? JSON.parse(updatedDocument.metadataTags)
+            id: document.id,
+            filename: document.filename,
+            originalFilename: document.originalFilename,
+            fileSize: document.fileSize,
+            metadataTags: document.metadataTags
+              ? JSON.parse(document.metadataTags)
               : [],
-            createdAt: updatedDocument.createdAt,
-            updatedAt: updatedDocument.updatedAt,
+            createdAt: document.createdAt,
+            updatedAt: document.updatedAt,
           },
           "Document updated successfully"
         ),
       };
     } catch (error) {
-      console.error("Update document error:", error);
+      const message =
+        error instanceof Error ? error.message : "Failed to update document";
+      const status = message.includes("not found") ? 404 : 500;
+
       return {
-        status: 500,
-        body: errorResponse("Failed to update document", error),
+        status,
+        body: errorResponse(message),
       };
     }
   }
@@ -236,38 +142,7 @@ export class DocumentController {
    */
   static async deleteDocument(id: number) {
     try {
-      // Check if document exists
-      const [document] = await db
-        .select()
-        .from(documents)
-        .where(eq(documents.id, id))
-        .limit(1);
-
-      if (!document) {
-        return {
-          status: 404,
-          body: errorResponse("Document not found"),
-        };
-      }
-
-      // Delete file from disk
-      try {
-        const file = Bun.file(document.filePath);
-        if (await file.exists()) {
-          await Bun.write(document.filePath, new Uint8Array(0)); // Clear file
-          // Use Bun's file system to remove the file
-          const fileHandle = await Bun.file(document.filePath);
-          if (await fileHandle.exists()) {
-            await Bun.$`rm -f ${document.filePath}`.quiet();
-          }
-        }
-      } catch (fileError) {
-        console.warn("File deletion warning:", fileError);
-        // Continue with database deletion even if file deletion fails
-      }
-
-      // Delete document from database
-      await db.delete(documents).where(eq(documents.id, id));
+      const document = await DocumentService.deleteDocument(id);
 
       return {
         status: 200,
@@ -280,10 +155,13 @@ export class DocumentController {
         ),
       };
     } catch (error) {
-      console.error("Delete document error:", error);
+      const message =
+        error instanceof Error ? error.message : "Failed to delete document";
+      const status = message.includes("not found") ? 404 : 500;
+
       return {
-        status: 500,
-        body: errorResponse("Failed to delete document", error),
+        status,
+        body: errorResponse(message),
       };
     }
   }
@@ -293,36 +171,9 @@ export class DocumentController {
    */
   static async searchDocumentsByTags(searchTags: string[]) {
     try {
-      if (!searchTags || searchTags.length === 0) {
-        return {
-          status: 400,
-          body: errorResponse("At least one tag is required for search"),
-        };
-      }
+      const documents = await DocumentService.searchDocumentsByTags(searchTags);
 
-      // Get all documents
-      const allDocuments = await db.select().from(documents);
-
-      // Filter documents that contain any of the search tags
-      const matchingDocuments = allDocuments.filter((doc) => {
-        if (!doc.metadataTags) return false;
-
-        try {
-          const docTags: string[] = JSON.parse(doc.metadataTags);
-          // Check if any of the search tags exist in the document's tags
-          return searchTags.some((searchTag) =>
-            docTags.some(
-              (docTag) =>
-                docTag.toLowerCase() === searchTag.toLowerCase() ||
-                docTag.toLowerCase().includes(searchTag.toLowerCase())
-            )
-          );
-        } catch {
-          return false;
-        }
-      });
-
-      const formattedDocuments = matchingDocuments.map((doc) => ({
+      const formattedDocuments = documents.map((doc) => ({
         id: doc.id,
         filename: doc.filename,
         originalFilename: doc.originalFilename,
@@ -344,10 +195,13 @@ export class DocumentController {
         ),
       };
     } catch (error) {
-      console.error("Search documents error:", error);
+      const message =
+        error instanceof Error ? error.message : "Failed to search documents";
+      const status = message.includes("required") ? 400 : 500;
+
       return {
-        status: 500,
-        body: errorResponse("Failed to search documents", error),
+        status,
+        body: errorResponse(message),
       };
     }
   }
@@ -357,48 +211,8 @@ export class DocumentController {
    */
   static async generateDownloadLink(documentId: number) {
     try {
-      // Check if document exists
-      const [document] = await db
-        .select()
-        .from(documents)
-        .where(eq(documents.id, documentId))
-        .limit(1);
-
-      if (!document) {
-        return {
-          status: 404,
-          body: errorResponse("Document not found"),
-        };
-      }
-
-      // Generate secure token
-      const token = generateDownloadToken();
-
-      // Calculate expiration time
-      const expiresAt = new Date();
-      expiresAt.setMinutes(
-        expiresAt.getMinutes() + config.downloadLinkExpiryMinutes
-      );
-
-      // Save token to database
-      const [downloadToken] = await db
-        .insert(downloadTokens)
-        .values({
-          token,
-          documentId,
-          expiresAt: expiresAt.toISOString(),
-        })
-        .returning();
-
-      if (!downloadToken) {
-        return {
-          status: 500,
-          body: errorResponse("Failed to generate download link"),
-        };
-      }
-
-      // Generate download URL
-      const downloadUrl = `/documents/download/${token}`;
+      const { token, expiresAt, downloadUrl, document } =
+        await DocumentService.generateDownloadLink(documentId);
 
       return {
         status: 200,
@@ -406,7 +220,7 @@ export class DocumentController {
           {
             downloadUrl,
             token,
-            expiresAt: downloadToken.expiresAt,
+            expiresAt,
             expiresInMinutes: config.downloadLinkExpiryMinutes,
             documentId: document.id,
             originalFilename: document.originalFilename,
@@ -415,10 +229,15 @@ export class DocumentController {
         ),
       };
     } catch (error) {
-      console.error("Generate download link error:", error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to generate download link";
+      const status = message.includes("not found") ? 404 : 500;
+
       return {
-        status: 500,
-        body: errorResponse("Failed to generate download link", error),
+        status,
+        body: errorResponse(message),
       };
     }
   }
@@ -428,56 +247,12 @@ export class DocumentController {
    */
   static async downloadDocumentByToken(token: string) {
     try {
-      // Find valid token
-      const now = new Date().toISOString();
-      const [tokenRecord] = await db
-        .select()
-        .from(downloadTokens)
-        .where(
-          and(
-            eq(downloadTokens.token, token),
-            gt(downloadTokens.expiresAt, now)
-          )
-        )
-        .limit(1);
+      const { document, filePath } =
+        await DocumentService.downloadDocumentByToken(token);
 
-      if (!tokenRecord) {
-        return {
-          status: 404,
-          body: errorResponse("Invalid or expired download link"),
-        };
-      }
+      // Return file for download
+      const file = Bun.file(filePath);
 
-      // Get document
-      const [document] = await db
-        .select()
-        .from(documents)
-        .where(eq(documents.id, tokenRecord.documentId))
-        .limit(1);
-
-      if (!document) {
-        return {
-          status: 404,
-          body: errorResponse("Document not found"),
-        };
-      }
-
-      // Check if file exists
-      const file = Bun.file(document.filePath);
-      if (!(await file.exists())) {
-        return {
-          status: 404,
-          body: errorResponse("File not found on server"),
-        };
-      }
-
-      // Mark token as used (optional - you can remove this if you want to allow multiple downloads)
-      await db
-        .update(downloadTokens)
-        .set({ usedAt: new Date().toISOString() })
-        .where(eq(downloadTokens.id, tokenRecord.id));
-
-      // Return file for download using Bun's file response
       return new Response(file, {
         headers: {
           "Content-Type": "application/pdf",
@@ -486,10 +261,15 @@ export class DocumentController {
         },
       });
     } catch (error) {
-      console.error("Download document error:", error);
+      const message =
+        error instanceof Error ? error.message : "Failed to download document";
+      const status = message.includes("Invalid") || message.includes("not found")
+        ? 404
+        : 500;
+
       return {
-        status: 500,
-        body: errorResponse("Failed to download document", error),
+        status,
+        body: errorResponse(message),
       };
     }
   }
