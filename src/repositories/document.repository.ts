@@ -3,19 +3,19 @@ import { documents, downloadTokens } from "../models";
 import { eq, and, gt } from "drizzle-orm";
 import type { Document, NewDocument } from "../models";
 import type { DownloadToken, NewDownloadToken } from "../models/download-token.model";
+import { ok, err, type Result } from "../utils/result";
 
 export class DocumentRepository {
-  static async create(data: NewDocument): Promise<Document> {
-    const [document] = await db
+
+  static create(data: NewDocument): Promise<Result<Document>> {
+    return db
       .insert(documents)
       .values(data)
-      .returning();
-    
-    if (!document) {
-      throw new Error("Failed to create document");
-    }
-    
-    return document;
+      .returning()
+      .then(([document]) =>
+        document ? ok(document) : err(new Error("Failed to create document"))
+      )
+      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));  
   }
 
   static async findAll(): Promise<Document[]> {
