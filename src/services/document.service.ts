@@ -3,48 +3,65 @@ import { config } from "../config/app";
 import { generateDownloadToken } from "../utils/token";
 import type { Document } from "../models";
 import type { DownloadToken } from "../models/download-token.model";
+import { ok, err, type Result } from "../utils/result";
 
 export class DocumentService {
+
+  
   static async createDocument(
     file: File,
     metadataTags?: string[]
-  ): Promise<Document> {
+  ): Promise<Result<Document>> {
     // File validation
     if (file.type !== "application/pdf") {
-      throw new Error("Only PDF files are allowed");
+      return err(new Error("Only PDF files are allowed"));
     }
 
     if (file.size > config.maxFileSize) {
-      throw new Error(
-        `File size exceeds maximum allowed size of ${config.maxFileSize / 1024 / 1024}MB`
+      return err(
+        new Error(
+          `File size exceeds maximum allowed size of ${config.maxFileSize / 1024 / 1024}MB`
+        )
       );
     }
 
     // File operations
-    const uploadDir = Bun.file(config.uploadPath);
-    if (!(await uploadDir.exists())) {
-      await Bun.$`mkdir -p ${config.uploadPath}`;
+    try {
+      const uploadDir = Bun.file(config.uploadPath);
+      if (!(await uploadDir.exists())) {
+        await Bun.$`mkdir -p ${config.uploadPath}`;
+      }
+
+      const timestamp = Date.now();
+      const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+      const filename = `${timestamp}_${sanitizedOriginalName}`;
+      const filePath = `${config.uploadPath}/${filename}`;
+
+      // Save file to disk
+      const arrayBuffer = await file.arrayBuffer();
+      await Bun.write(filePath, arrayBuffer);
+
+      // Save to database via repository
+      const result = await DocumentRepository.create({
+        filename,
+        originalFilename: file.name,
+        filePath,
+        fileSize: file.size,
+        metadataTags: JSON.stringify(metadataTags || []),
+      });
+
+      if (!result.ok) {
+        return err(result.error);
+      }
+
+      return ok(result.value);
+    } catch (error) {
+      return err(
+        error instanceof Error
+          ? error
+          : new Error(`Failed to create document: ${String(error)}`)
+      );
     }
-
-    const timestamp = Date.now();
-    const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const filename = `${timestamp}_${sanitizedOriginalName}`;
-    const filePath = `${config.uploadPath}/${filename}`;
-
-    // Save file to disk
-    const arrayBuffer = await file.arrayBuffer();
-    await Bun.write(filePath, arrayBuffer);
-
-    // Save to database via repository
-    const document = await DocumentRepository.create({
-      filename,
-      originalFilename: file.name,
-      filePath,
-      fileSize: file.size,
-      metadataTags: JSON.stringify(metadataTags || []),
-    });
-
-    return document;
   }
 
   static async getAllDocuments(): Promise<Document[]> {

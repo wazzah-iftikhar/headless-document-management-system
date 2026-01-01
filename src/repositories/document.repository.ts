@@ -9,6 +9,7 @@ import { safeParseJSON } from "../utils/safe-parse";
 export class DocumentRepository {
 
   static create(data: NewDocument): Promise<Result<Document>> {
+
     return db
       .insert(documents)
       .values(data)
@@ -17,17 +18,21 @@ export class DocumentRepository {
         document ? ok(document) : err(new Error("Failed to create document"))
       )
       .catch((e) => err(e instanceof Error ? e : new Error(String(e))));  
+      
   }
 
   static findAll(): Promise<Result<Document[]>> {
+
     return db
       .select()
       .from(documents)
       .then((rows) => ok(rows))
       .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+
   }
 
   static findById(id: number): Promise<Result<Document>> {
+
     return db
       .select()
       .from(documents)
@@ -37,9 +42,11 @@ export class DocumentRepository {
         document ? ok(document) : err(new Error("Document not found"))
       )
       .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+
   }
 
   static update(id: number, data: Partial<Document>): Promise<Result<Document>> {
+
     return db
       .update(documents)
       .set({ ...data, updatedAt: new Date().toISOString() })
@@ -49,23 +56,27 @@ export class DocumentRepository {
         document ? ok(document) : err(new Error("Document not found"))
       )
       .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+
   }
 
  static delete(id: number): Promise<Result<void>> {
-  return db
-    .delete(documents)
-    .where(eq(documents.id, id))
-    .then((res: any) => {
-      const affected =
-        res?.rowCount ?? res?.affectedRows ?? res?.length ?? (typeof res === "number" ? res : undefined);
-      return affected === 0
-        ? err(new Error("Document not found"))
+
+    return db
+      .delete(documents)
+      .where(eq(documents.id, id))
+      .then((res: any) => {
+        const affected =
+          res?.rowCount ?? res?.affectedRows ?? res?.length ?? (typeof res === "number" ? res : undefined);
+        return affected === 0
+          ? err(new Error("Document not found"))
         : ok<void>(undefined);
-    })
-    .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
-}
+      })
+      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+
+  }
 
   static findByTags(searchTags: string[]): Promise<Result<Document[]>> {
+
     return db
       .select()
       .from(documents)
@@ -86,7 +97,8 @@ export class DocumentRepository {
         return ok(filtered);
       })
       .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
-}
+  }
+
 }
 
 export class DownloadTokenRepository {
@@ -104,6 +116,7 @@ export class DownloadTokenRepository {
   }
 
   static findValidToken(token: string): Promise<Result<DownloadToken>> {
+
     const now = new Date().toISOString();
     return db
       .select()
@@ -119,9 +132,11 @@ export class DownloadTokenRepository {
         tokenRecord ? ok(tokenRecord) : err(new Error("Download token not found"))
       )
       .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+
   }
 
   static markAsUsed(id: number): Promise<Result<void>> {
+
     return db
       .update(downloadTokens)
       .set({ usedAt: new Date().toISOString() })
