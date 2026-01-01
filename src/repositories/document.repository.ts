@@ -4,6 +4,7 @@ import { eq, and, gt } from "drizzle-orm";
 import type { Document, NewDocument } from "../models";
 import type { DownloadToken, NewDownloadToken } from "../models/download-token.model";
 import { ok, err, type Result } from "../utils/result";
+import { safeParseJSON } from "../utils/safe-parse";
 
 export class DocumentRepository {
 
@@ -18,76 +19,93 @@ export class DocumentRepository {
       .catch((e) => err(e instanceof Error ? e : new Error(String(e))));  
   }
 
-  static async findAll(): Promise<Document[]> {
-    return await db.select().from(documents);
+  static findAll(): Promise<Result<Document[]>> {
+    return db
+      .select()
+      .from(documents)
+      .then((rows) => ok(rows))
+      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
   }
 
-  static async findById(id: number): Promise<Document | null> {
-    const [document] = await db
+  static findById(id: number): Promise<Result<Document>> {
+    return db
       .select()
       .from(documents)
       .where(eq(documents.id, id))
-      .limit(1);
-    
-    return document || null;
+      .limit(1)
+      .then(([document]) =>
+        document ? ok(document) : err(new Error("Document not found"))
+      )
+      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
   }
 
-  static async update(id: number, data: Partial<Document>): Promise<Document> {
-    const [document] = await db
+  static update(id: number, data: Partial<Document>): Promise<Result<Document>> {
+    return db
       .update(documents)
       .set({ ...data, updatedAt: new Date().toISOString() })
       .where(eq(documents.id, id))
-      .returning();
-    
-    if (!document) {
-      throw new Error("Document not found");
-    }
-    
-    return document;
+      .returning()
+      .then(([document]) =>
+        document ? ok(document) : err(new Error("Document not found"))
+      )
+      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
   }
 
-  static async delete(id: number): Promise<void> {
-    await db.delete(documents).where(eq(documents.id, id));
-  }
+ static delete(id: number): Promise<Result<void>> {
+  return db
+    .delete(documents)
+    .where(eq(documents.id, id))
+    .then((res: any) => {
+      const affected =
+        res?.rowCount ?? res?.affectedRows ?? res?.length ?? (typeof res === "number" ? res : undefined);
+      return affected === 0
+        ? err(new Error("Document not found"))
+        : ok<void>(undefined);
+    })
+    .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+}
 
-  static async findByTags(searchTags: string[]): Promise<Document[]> {
-    const allDocuments = await db.select().from(documents);
-    
-    return allDocuments.filter((doc) => {
-      if (!doc.metadataTags) return false;
-      try {
-        const docTags: string[] = JSON.parse(doc.metadataTags);
-        return searchTags.some((searchTag) =>
-          docTags.some(
-            (docTag) =>
-              docTag.toLowerCase() === searchTag.toLowerCase() ||
-              docTag.toLowerCase().includes(searchTag.toLowerCase())
-          )
-        );
-      } catch {
-        return false;
-      }
-    });
-  }
+  static findByTags(searchTags: string[]): Promise<Result<Document[]>> {
+    return db
+      .select()
+      .from(documents)
+      .then((rows) => {
+        const filtered = rows.filter((doc) => {
+          if (!doc.metadataTags) return false;
+          const parsed = safeParseJSON<string[]>(doc.metadataTags);
+          if (!parsed.ok) return false;
+          const docTags = parsed.value;
+          return searchTags.some((searchTag) =>
+            docTags.some(
+              (docTag) =>
+                docTag.toLowerCase() === searchTag.toLowerCase() ||
+                docTag.toLowerCase().includes(searchTag.toLowerCase())
+            )
+          );
+        });
+        return ok(filtered);
+      })
+      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+}
 }
 
 export class DownloadTokenRepository {
-  static async create(data: NewDownloadToken): Promise<DownloadToken> {
-    const [token] = await db
+
+  static create(data: NewDownloadToken): Promise<Result<DownloadToken>> {
+    return db
       .insert(downloadTokens)
       .values(data)
-      .returning();
-    
-    if (!token) {
-      throw new Error("Failed to create download token");
-    }
-    
-    return token;
+      .returning()
+      .then(([token]) =>
+        token ? ok(token) : err(new Error("Failed to create download token"))
+      )
+      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+
   }
 
-  static async findValidToken(token: string): Promise<DownloadToken | null> {
+  static findValidToken(token: string): Promise<Result<DownloadToken>> {
     const now = new Date().toISOString();
-    const [tokenRecord] = await db
+    return db
       .select()
       .from(downloadTokens)
       .where(
@@ -96,16 +114,25 @@ export class DownloadTokenRepository {
           gt(downloadTokens.expiresAt, now)
         )
       )
-      .limit(1);
-    
-    return tokenRecord || null;
+      .limit(1)
+      .then(([tokenRecord]) =>
+        tokenRecord ? ok(tokenRecord) : err(new Error("Download token not found"))
+      )
+      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
   }
 
-  static async markAsUsed(id: number): Promise<void> {
-    await db
+  static markAsUsed(id: number): Promise<Result<void>> {
+    return db
       .update(downloadTokens)
       .set({ usedAt: new Date().toISOString() })
-      .where(eq(downloadTokens.id, id));
-  }
+      .where(eq(downloadTokens.id, id))
+      .then((res: any) => {
+        const affected =
+          res?.rowCount ?? res?.affectedRows ?? (typeof res === "number" ? res : undefined) ?? res?.length;
+      return affected === 0 ? err(new Error("Download token not found")) : ok<void>(undefined);
+    })
+    .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+}
+
 }
 
