@@ -132,7 +132,7 @@ export class DownloadTokenRepository {
       return affected === 0 ? err(new Error("Download token not found")) : ok<void>(undefined);
     })
     .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
-}
+  }
 
 }
 
