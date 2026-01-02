@@ -1,24 +1,42 @@
-import { db } from "../config/database";
+import { Effect } from "effect";
 import { documents, downloadTokens } from "../models";
 import { eq, and, gt } from "drizzle-orm";
 import type { Document, NewDocument } from "../models";
 import type { DownloadToken, NewDownloadToken } from "../models/download-token.model";
 import { ok, err, type Result } from "../utils/result";
 import { safeParseJSON } from "../utils/safe-parse";
+import { DatabaseService } from "../effect/services/database.service";
 
 export class DocumentRepository {
 
-  static create(data: NewDocument): Promise<Result<Document>> {
+  /**
+   * Create a new document
+   * Refactored to use Effect for error handling and dependency injection
+   */
+  static create(data: NewDocument): Effect.Effect<Document, Error, DatabaseService> {
+    return Effect.gen(function* (_) {
+      const db = yield* _(DatabaseService);
 
-    return db
-      .insert(documents)
-      .values(data)
-      .returning()
-      .then(([document]) =>
-        document ? ok(document) : err(new Error("Failed to create document"))
-      )
-      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));  
-      
+      const result = yield* _(
+        Effect.tryPromise({
+          try: () =>
+            db
+              .insert(documents)
+              .values(data)
+              .returning()
+              .then(([document]) => {
+                if (!document) {
+                  throw new Error("Failed to create document");
+                }
+                return document;
+              }),
+          catch: (error) =>
+            error instanceof Error ? error : new Error(String(error)),
+        })
+      );
+
+      return result;
+    });
   }
 
   static findAll(): Promise<Result<Document[]>> {
