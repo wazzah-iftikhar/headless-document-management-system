@@ -10,6 +10,8 @@ import { Effect, pipe } from "effect";
 import { AppLayer } from "../effect/layers";
 import { DatabaseService } from "../effect/services/database.service";
 import { ConfigService } from "../effect/services/config.service";
+import type { ServiceError } from "../errors/service.errors";
+import { mapRepoErrorToServiceError } from "../errors/service.errors";
 
 
 export class DocumentService {
@@ -17,31 +19,52 @@ export class DocumentService {
   /**
    * Create a new document
    * Refactored to use pipe and flatMap with Effect-based FileUtils functions
+   * Maps RepoError to ServiceError at boundary
    */
   static createDocument(
     file: File,
     metadataTags?: string[]
-  ): Effect.Effect<Document, Error, DatabaseService | ConfigService> {
+  ): Effect.Effect<Document, ServiceError, DatabaseService | ConfigService> {
     
     return pipe(
       FileUtils.validateFile(file),
+      // Map FileUtils errors to domain errors
+      Effect.mapError((error: Error) => {
+        const message = error.message.toLowerCase();
+        if (message.includes("only pdf") || message.includes("pdf")) {
+          return { _tag: "InvalidFileType", message: error.message } as ServiceError;
+        }
+        if (message.includes("size") || message.includes("exceeds")) {
+          const match = error.message.match(/(\d+)/g);
+          const maxSize = match ? parseInt(match[0]) : 0;
+          return { _tag: "FileTooLarge", maxSize, actualSize: file.size } as ServiceError;
+        }
+        return { _tag: "ServiceUnknown", operation: "createDocument", message: error.message } as ServiceError;
+      }),
       Effect.flatMap((validatedFile) =>
         pipe(
           FileUtils.ensureUploadDirectory(),
+          Effect.mapError(() => ({ _tag: "ServiceUnavailable", operation: "createDocument" } as ServiceError)),
           Effect.flatMap(() =>
             pipe(
               FileUtils.generateFilePath(validatedFile),
+              Effect.mapError(() => ({ _tag: "ServiceUnavailable", operation: "createDocument" } as ServiceError)),
               Effect.flatMap((pathData) =>
                 pipe(
                   FileUtils.saveFileToDisk(validatedFile, pathData.filePath),
+                  Effect.mapError(() => ({ _tag: "ServiceUnavailable", operation: "createDocument" } as ServiceError)),
                   Effect.flatMap(() =>
-                    DocumentRepository.create({
-                      filename: pathData.filename,
-                      originalFilename: validatedFile.name,
-                      filePath: pathData.filePath,
-                      fileSize: validatedFile.size,
-                      metadataTags: JSON.stringify(metadataTags || []),
-                    })
+                    pipe(
+                      DocumentRepository.create({
+                        filename: pathData.filename,
+                        originalFilename: validatedFile.name,
+                        filePath: pathData.filePath,
+                        fileSize: validatedFile.size,
+                        metadataTags: JSON.stringify(metadataTags || []),
+                      }),
+                      // Map RepoError to ServiceError at boundary
+                      Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "createDocument"))
+                    )
                   )
                 )
               )
