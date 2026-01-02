@@ -5,6 +5,8 @@ import { HttpUtils } from "../utils/http.utils";
 import { Effect, pipe } from "effect";
 import { AppLayer } from "../effect/layers";
 import type { Document } from "../models";
+import type { HttpError } from "../errors/controller.errors";
+import { mapServiceErrorToHttpError, httpErrorToStatus } from "../errors/controller.errors";
 
 
 export class DocumentController {
@@ -14,20 +16,21 @@ export class DocumentController {
   /**
    * Upload a PDF document
    * Refactored to use Effect-based service with functional error handling
-   * Uses Effect.match to handle errors functionally without try-catch
+   * Maps ServiceError to HttpError at boundary
    */
   static async uploadDocument(file: File, metadataTags?: string[]) {
     return Effect.runPromise(
       pipe(
         DocumentService.createDocument(file, metadataTags),
         Effect.provide(AppLayer),
+        // Map ServiceError to HttpError at boundary
+        Effect.mapError((serviceError) => mapServiceErrorToHttpError(serviceError)),
         Effect.match({
-          onFailure: (error: Error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+          onFailure: (httpError: HttpError) => {
+            const status = httpErrorToStatus(httpError);
             return {
               status,
-              body: errorResponse(err.message),
+              body: errorResponse(httpError.message),
             };
           },
           onSuccess: (document: Document) => ({
@@ -52,20 +55,21 @@ export class DocumentController {
   /**
    * Get all documents
    * Refactored to use Effect-based service with functional error handling
-   * Uses Effect.match to handle errors functionally without try-catch
+   * Maps ServiceError to HttpError at boundary
    */
   static async getAllDocuments() {
     return Effect.runPromise(
       pipe(
         DocumentService.getAllDocuments(),
         Effect.provide(AppLayer),
+        // Map ServiceError to HttpError at boundary
+        Effect.mapError((serviceError) => mapServiceErrorToHttpError(serviceError)),
         Effect.match({
-          onFailure: (error: Error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+          onFailure: (httpError: HttpError) => {
+            const status = httpErrorToStatus(httpError);
             return {
               status,
-              body: errorResponse(err.message),
+              body: errorResponse(httpError.message),
             };
           },
           onSuccess: (documents: Document[]) => ({
@@ -80,20 +84,21 @@ export class DocumentController {
   /**
    * Get document by ID
    * Refactored to use Effect-based service with functional error handling
-   * Uses Effect.match to handle errors functionally without try-catch
+   * Maps ServiceError to HttpError at boundary
    */
   static async getDocumentById(id: number) {
     return Effect.runPromise(
       pipe(
         DocumentService.getDocumentById(id),
         Effect.provide(AppLayer),
+        // Map ServiceError to HttpError at boundary
+        Effect.mapError((serviceError) => mapServiceErrorToHttpError(serviceError)),
         Effect.match({
-          onFailure: (error: Error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+          onFailure: (httpError: HttpError) => {
+            const status = httpErrorToStatus(httpError);
             return {
               status,
-              body: errorResponse(err.message),
+              body: errorResponse(httpError.message),
             };
           },
           onSuccess: (document: Document) => ({
@@ -108,20 +113,21 @@ export class DocumentController {
   /**
    * Update document metadata
    * Refactored to use Effect-based service with functional error handling
-   * Uses Effect.match to handle errors functionally without try-catch
+   * Maps ServiceError to HttpError at boundary
    */
   static async updateDocument(id: number, metadataTags?: string[]) {
     return Effect.runPromise(
       pipe(
         DocumentService.updateDocument(id, metadataTags),
         Effect.provide(AppLayer),
+        // Map ServiceError to HttpError at boundary
+        Effect.mapError((serviceError) => mapServiceErrorToHttpError(serviceError)),
         Effect.match({
-          onFailure: (error: Error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+          onFailure: (httpError: HttpError) => {
+            const status = httpErrorToStatus(httpError);
             return {
               status,
-              body: errorResponse(err.message),
+              body: errorResponse(httpError.message),
             };
           },
           onSuccess: (document: Document) => ({
@@ -136,20 +142,21 @@ export class DocumentController {
   /**
    * Delete document
    * Refactored to use Effect-based service with functional error handling
-   * Uses Effect.match to handle errors functionally without try-catch
+   * Maps ServiceError to HttpError at boundary
    */
   static async deleteDocument(id: number) {
     return Effect.runPromise(
       pipe(
         DocumentService.deleteDocument(id),
         Effect.provide(AppLayer),
+        // Map ServiceError to HttpError at boundary
+        Effect.mapError((serviceError) => mapServiceErrorToHttpError(serviceError)),
         Effect.match({
-          onFailure: (error: Error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+          onFailure: (httpError: HttpError) => {
+            const status = httpErrorToStatus(httpError);
             return {
               status,
-              body: errorResponse(err.message),
+              body: errorResponse(httpError.message),
             };
           },
           onSuccess: (document: Document) => ({
@@ -170,20 +177,21 @@ export class DocumentController {
   /**
    * Search documents by metadata tags
    * Refactored to use Effect-based service with functional error handling
-   * Uses Effect.match to handle errors functionally without try-catch
+   * Maps ServiceError to HttpError at boundary
    */
   static async searchDocumentsByTags(searchTags: string[]) {
     return Effect.runPromise(
       pipe(
         DocumentService.searchDocumentsByTags(searchTags),
         Effect.provide(AppLayer),
+        // Map ServiceError to HttpError at boundary
+        Effect.mapError((serviceError) => mapServiceErrorToHttpError(serviceError)),
         Effect.match({
-          onFailure: (error: Error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+          onFailure: (httpError: HttpError) => {
+            const status = httpErrorToStatus(httpError);
             return {
               status,
-              body: errorResponse(err.message),
+              body: errorResponse(httpError.message),
             };
           },
           onSuccess: (documents: Document[]) => ({
@@ -205,20 +213,21 @@ export class DocumentController {
   /**
    * Generate a short-lived download link for a document
    * Refactored to use Effect-based service with functional error handling
-   * Uses Effect.match to handle errors functionally without try-catch
+   * Maps ServiceError to HttpError at boundary
    */
   static async generateDownloadLink(documentId: number) {
     return Effect.runPromise(
       pipe(
         DocumentService.generateDownloadLink(documentId),
         Effect.provide(AppLayer),
+        // Map ServiceError to HttpError at boundary
+        Effect.mapError((serviceError) => mapServiceErrorToHttpError(serviceError)),
         Effect.match({
-          onFailure: (error: Error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+          onFailure: (httpError: HttpError) => {
+            const status = httpErrorToStatus(httpError);
             return {
               status,
-              body: errorResponse(err.message),
+              body: errorResponse(httpError.message),
             };
           },
           onSuccess: (downloadLink) => ({
@@ -243,20 +252,21 @@ export class DocumentController {
   /**
    * Download document using a token
    * Refactored to use Effect-based service with functional error handling
-   * Uses Effect.match to handle errors functionally without try-catch
+   * Maps ServiceError to HttpError at boundary
    */
   static async downloadDocumentByToken(token: string) {
     return Effect.runPromise(
       pipe(
         DocumentService.downloadDocumentByToken(token),
         Effect.provide(AppLayer),
+        // Map ServiceError to HttpError at boundary
+        Effect.mapError((serviceError) => mapServiceErrorToHttpError(serviceError)),
         Effect.match({
-          onFailure: (error: Error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+          onFailure: (httpError: HttpError) => {
+            const status = httpErrorToStatus(httpError);
             return {
               status,
-              body: errorResponse(err.message),
+              body: errorResponse(httpError.message),
             };
           },
           onSuccess: (downloadData) => {

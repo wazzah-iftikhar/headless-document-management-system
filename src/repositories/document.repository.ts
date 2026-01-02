@@ -121,7 +121,8 @@ export class DocumentRepository {
             catch: (error) => toRepoError(error),
           }),
           Effect.flatMap((existingDoc) => {
-            if (!existingDoc[0]) {
+            const doc = existingDoc[0] || null;
+            if (!doc) {
               return Effect.succeed(null);
             }
             return pipe(
@@ -129,7 +130,7 @@ export class DocumentRepository {
                 try: () => db.delete(documents).where(eq(documents.id, id)),
                 catch: (error) => toRepoError(error),
               }),
-              Effect.map(() => existingDoc[0])
+              Effect.map(() => doc)
             );
           })
         )
