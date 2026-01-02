@@ -1,15 +1,7 @@
 import { DocumentService } from "../services/document.service";
 import { successResponse, errorResponse } from "../utils/response";
 import { config } from "../config/app";
-
-// Helper to map error messages to HTTP status codes
-const getStatusFromError = (error: Error): number => {
-  const message = error.message.toLowerCase();
-  
-  if (message.includes("not found")) return 404;
-  if (message.includes("only pdf") || message.includes("size") || message.includes("required")) return 400;
-  return 500;
-};
+import { HttpUtils } from "../utils/http.utils";
 
 
 export class DocumentController {
@@ -21,7 +13,7 @@ export class DocumentController {
     
     if (!result.ok) {
       return {
-        status: getStatusFromError(result.error),
+        status: HttpUtils.getStatusFromError(result.error),
         body: errorResponse(result.error.message),
       };
     }
@@ -50,7 +42,7 @@ export class DocumentController {
     
     if (!result.ok) {
       return {
-        status: getStatusFromError(result.error),
+        status: HttpUtils.getStatusFromError(result.error),
         body: errorResponse(result.error.message),
       };
     }
@@ -69,7 +61,7 @@ export class DocumentController {
     
     if (!result.ok) {
       return {
-        status: getStatusFromError(result.error),
+        status: HttpUtils.getStatusFromError(result.error),
         body: errorResponse(result.error.message),
       };
     }
@@ -88,7 +80,7 @@ export class DocumentController {
     
     if (!result.ok) {
       return {
-        status: getStatusFromError(result.error),
+        status: HttpUtils.getStatusFromError(result.error),
         body: errorResponse(result.error.message),
       };
     }
@@ -107,7 +99,7 @@ export class DocumentController {
     
     if (!result.ok) {
       return {
-        status: getStatusFromError(result.error),
+        status: HttpUtils.getStatusFromError(result.error),
         body: errorResponse(result.error.message),
       };
     }
@@ -132,7 +124,7 @@ export class DocumentController {
     
     if (!result.ok) {
       return {
-        status: getStatusFromError(result.error),
+        status: HttpUtils.getStatusFromError(result.error),
         body: errorResponse(result.error.message),
       };
     }
@@ -158,7 +150,7 @@ export class DocumentController {
     
     if (!result.ok) {
       return {
-        status: getStatusFromError(result.error),
+        status: HttpUtils.getStatusFromError(result.error),
         body: errorResponse(result.error.message),
       };
     }
@@ -187,7 +179,7 @@ export class DocumentController {
     
     if (!result.ok) {
       return {
-        status: getStatusFromError(result.error),
+        status: HttpUtils.getStatusFromError(result.error),
         body: errorResponse(result.error.message),
       };
     }

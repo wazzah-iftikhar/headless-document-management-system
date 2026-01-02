@@ -3,101 +3,31 @@ import { config } from "../config/app";
 import { generateDownloadToken } from "../utils/token";
 import type { Document } from "../models";
 import type { DownloadToken } from "../models/download-token.model";
-import { ok, err, type Result, tryAsync } from "../utils/result";
-
-
-const validateFile = (file: File): Result<File> => {
-  if (file.type !== "application/pdf") {
-    return err(new Error("Only PDF files are allowed"));
-  }
-  if (file.size > config.maxFileSize) {
-    return err(
-      new Error(
-        `File size exceeds maximum allowed size of ${config.maxFileSize / 1024 / 1024}MB`
-      )
-    );
-  }
-  return ok(file);
-};
-
-
-const ensureUploadDirectory = async (): Promise<Result<void>> => {
-  return tryAsync(async () => {
-    const uploadDir = Bun.file(config.uploadPath);
-    if (!(await uploadDir.exists())) {
-      await Bun.$`mkdir -p ${config.uploadPath}`;
-    }
-  });
-};
-
-
-const generateFilePath = (file: File): Result<{ filePath: string; filename: string }> => {
-  const timestamp = Date.now();
-  const randomSuffix = Math.random().toString(36).substring(2, 8);
-  const filename = `${timestamp}-${randomSuffix}.pdf`;
-  const filePath = `${config.uploadPath}/${filename}`;
-  return ok({ filePath, filename });
-};
-
-
-const saveFileToDisk = async (file: File, filePath: string): Promise<Result<void>> => {
-  return tryAsync(async () => {
-    await Bun.write(filePath, await file.arrayBuffer());
-  });
-};
-
-
-const deleteFileFromDisk = async (filePath: string): Promise<Result<void>> => {
-  return tryAsync(async () => {
-    const file = Bun.file(filePath);
-    if (await file.exists()) {
-      await Bun.write(filePath, new Uint8Array(0));
-      const fileHandle = await Bun.file(filePath);
-      if (await fileHandle.exists()) {
-        await Bun.$`rm -f ${filePath}`.quiet();
-      }
-    }
-  });
-};
-
-const validateSearchTags = (searchTags: string[]): Result<string[]> => {
-  if (!searchTags || searchTags.length === 0) {
-    return err(new Error("At least one tag is required for search"));
-  }
-  return ok(searchTags);
-};
-
-
-const checkFileExists = async (filePath: string): Promise<Result<void>> => {
-  return tryAsync(async () => {
-    const file = Bun.file(filePath);
-    if (!(await file.exists())) {
-      throw new Error("File not found on server");
-    }
-  });
-};
+import { ok, err, type Result } from "../utils/result";
+import { FileUtils } from "../utils/file.utils";
+import { ValidationUtils } from "../utils/validation.utils";
 
 
 export class DocumentService {
   
-    static async createDocument(
-      file: File,
-      metadataTags?: string[]
+  static async createDocument(
+    file: File,
+    metadataTags?: string[]
   ): Promise<Result<Document>> {
     // Validate file
-    const validatedFile = validateFile(file);
+    const validatedFile = FileUtils.validateFile(file);
     if (!validatedFile.ok) return validatedFile;
-  
+
     // Ensure directory exists
-    const dirResult = await ensureUploadDirectory();
+    const dirResult = await FileUtils.ensureUploadDirectory();
     if (!dirResult.ok) return dirResult;
-  
+
     // Generate file path
-    const pathResult = generateFilePath(validatedFile.value);
+    const pathResult = FileUtils.generateFilePath(validatedFile.value);
     if (!pathResult.ok) return pathResult;
-  
+
     // Save file to disk
-    const saveResult = await saveFileToDisk(validatedFile.value, pathResult.value.filePath);
+    const saveResult = await FileUtils.saveFileToDisk(validatedFile.value, pathResult.value.filePath);
     if (!saveResult.ok) return saveResult;
   
     // Save to database
@@ -176,7 +106,7 @@ static async updateDocument(
 }
 
 
-static async deleteDocument(id: number): Promise<Result<Document>> {
+  static async deleteDocument(id: number): Promise<Result<Document>> {
   // Get document first (to return it after deletion)
   const documentResult = await DocumentRepository.findById(id);
   if (!documentResult.ok) {
@@ -184,7 +114,7 @@ static async deleteDocument(id: number): Promise<Result<Document>> {
   }
 
   // Delete file from disk (non-critical - log warning if fails but continue)
-  const fileDeleteResult = await deleteFileFromDisk(documentResult.value.filePath);
+  const fileDeleteResult = await FileUtils.deleteFileFromDisk(documentResult.value.filePath);
   if (!fileDeleteResult.ok) {
     console.warn("File deletion warning:", fileDeleteResult.error.message);
     // Continue with database deletion even if file deletion fails
@@ -203,7 +133,7 @@ static async deleteDocument(id: number): Promise<Result<Document>> {
 
 static async searchDocumentsByTags(searchTags: string[]): Promise<Result<Document[]>> {
   // Validate search tags
-  const validatedTags = validateSearchTags(searchTags);
+  const validatedTags = ValidationUtils.validateSearchTags(searchTags);
   if (!validatedTags.ok) {
     return err(validatedTags.error);
   }
@@ -284,7 +214,7 @@ static async downloadDocumentByToken(token: string): Promise<Result<{
   }
 
   // Check if file exists
-  const fileCheckResult = await checkFileExists(documentResult.value.filePath);
+  const fileCheckResult = await FileUtils.checkFileExists(documentResult.value.filePath);
   if (!fileCheckResult.ok) {
     return err(fileCheckResult.error);
   }
