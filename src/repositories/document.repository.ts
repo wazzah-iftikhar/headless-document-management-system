@@ -40,16 +40,15 @@ export class DocumentRepository {
 
   /**
    * Find all documents
-   * Refactored to use Effect with explicit succeed/fail
+   * Refactored to use Effect with RepoError type
    */
-  static findAll(): Effect.Effect<Document[], Error, DatabaseService> {
+  static findAll(): Effect.Effect<Document[], RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) =>
         Effect.tryPromise({
           try: () => db.select().from(documents),
-          catch: (error) =>
-            error instanceof Error ? error : new Error(String(error)),
+          catch: (error) => toRepoError(error),
         })
       )
     );
@@ -57,9 +56,9 @@ export class DocumentRepository {
 
   /**
    * Find document by ID
-   * Refactored to use Effect with explicit succeed/fail
+   * Returns null if not found (modeled as data, not error per article)
    */
-  static findById(id: number): Effect.Effect<Document, Error, DatabaseService> {
+  static findById(id: number): Effect.Effect<Document | null, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) =>
@@ -71,15 +70,9 @@ export class DocumentRepository {
                 .from(documents)
                 .where(eq(documents.id, id))
                 .limit(1),
-            catch: (error) =>
-              error instanceof Error ? error : new Error(String(error)),
+            catch: (error) => toRepoError(error),
           }),
-          Effect.flatMap((rows) => {
-            if (!rows[0]) {
-              return Effect.fail(new Error("Document not found"));
-            }
-            return Effect.succeed(rows[0]);
-          })
+          Effect.map((rows) => rows[0] || null)
         )
       )
     );
@@ -87,9 +80,9 @@ export class DocumentRepository {
 
   /**
    * Update document by ID
-   * Refactored to use Effect with explicit succeed/fail
+   * Returns null if not found (modeled as data, not error per article)
    */
-  static update(id: number, data: Partial<Document>): Effect.Effect<Document, Error, DatabaseService> {
+  static update(id: number, data: Partial<Document>): Effect.Effect<Document | null, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) =>
@@ -101,15 +94,9 @@ export class DocumentRepository {
                 .set({ ...data, updatedAt: new Date().toISOString() })
                 .where(eq(documents.id, id))
                 .returning(),
-            catch: (error) =>
-              error instanceof Error ? error : new Error(String(error)),
+            catch: (error) => toRepoError(error),
           }),
-          Effect.flatMap((rows) => {
-            if (!rows[0]) {
-              return Effect.fail(new Error("Document not found"));
-            }
-            return Effect.succeed(rows[0]);
-          })
+          Effect.map((rows) => rows[0] || null)
         )
       )
     );
@@ -117,9 +104,9 @@ export class DocumentRepository {
 
   /**
    * Delete document by ID
-   * Refactored to use Effect with explicit succeed/fail
+   * Returns null if not found (modeled as data, not error per article)
    */
-  static delete(id: number): Effect.Effect<void, Error, DatabaseService> {
+  static delete(id: number): Effect.Effect<Document | null, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) =>
@@ -131,20 +118,18 @@ export class DocumentRepository {
                 .from(documents)
                 .where(eq(documents.id, id))
                 .limit(1),
-            catch: (error) =>
-              error instanceof Error ? error : new Error(String(error)),
+            catch: (error) => toRepoError(error),
           }),
           Effect.flatMap((existingDoc) => {
             if (!existingDoc[0]) {
-              return Effect.fail(new Error("Document not found"));
+              return Effect.succeed(null);
             }
             return pipe(
               Effect.tryPromise({
                 try: () => db.delete(documents).where(eq(documents.id, id)),
-                catch: (error) =>
-                  error instanceof Error ? error : new Error(String(error)),
+                catch: (error) => toRepoError(error),
               }),
-              Effect.map(() => undefined)
+              Effect.map(() => existingDoc[0])
             );
           })
         )
@@ -154,17 +139,16 @@ export class DocumentRepository {
 
   /**
    * Find documents by metadata tags
-   * Refactored to use Effect with explicit succeed/fail
+   * Refactored to use Effect with RepoError type
    */
-  static findByTags(searchTags: string[]): Effect.Effect<Document[], Error, DatabaseService> {
+  static findByTags(searchTags: string[]): Effect.Effect<Document[], RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) =>
         pipe(
           Effect.tryPromise({
             try: () => db.select().from(documents),
-            catch: (error) =>
-              error instanceof Error ? error : new Error(String(error)),
+            catch: (error) => toRepoError(error),
           }),
           Effect.map((rows) => {
             // Filter documents by tags
@@ -194,9 +178,9 @@ export class DownloadTokenRepository {
 
   /**
    * Create a new download token
-   * Refactored to use Effect with explicit succeed/fail
+   * Refactored to use Effect with RepoError type
    */
-  static create(data: NewDownloadToken): Effect.Effect<DownloadToken, Error, DatabaseService> {
+  static create(data: NewDownloadToken): Effect.Effect<DownloadToken, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) =>
@@ -212,8 +196,7 @@ export class DownloadTokenRepository {
                 }
                 return token;
               }),
-          catch: (error) =>
-            error instanceof Error ? error : new Error(String(error)),
+          catch: (error) => toRepoError(error),
         })
       )
     );
@@ -221,9 +204,9 @@ export class DownloadTokenRepository {
 
   /**
    * Find a valid (non-expired and unused) download token
-   * Refactored to use Effect with explicit succeed/fail
+   * Returns null if not found (modeled as data, not error per article)
    */
-  static findValidToken(token: string): Effect.Effect<DownloadToken, Error, DatabaseService> {
+  static findValidToken(token: string): Effect.Effect<DownloadToken | null, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) => {
@@ -241,15 +224,9 @@ export class DownloadTokenRepository {
                   )
                 )
                 .limit(1),
-            catch: (error) =>
-              error instanceof Error ? error : new Error(String(error)),
+            catch: (error) => toRepoError(error),
           }),
-          Effect.flatMap((rows) => {
-            if (!rows[0]) {
-              return Effect.fail(new Error("Download token not found"));
-            }
-            return Effect.succeed(rows[0]);
-          })
+          Effect.map((rows) => rows[0] || null)
         );
       })
     );
@@ -257,9 +234,9 @@ export class DownloadTokenRepository {
 
   /**
    * Mark a download token as used
-   * Refactored to use Effect with explicit succeed/fail
+   * Refactored to use Effect with RepoError type
    */
-  static markAsUsed(id: number): Effect.Effect<void, Error, DatabaseService> {
+  static markAsUsed(id: number): Effect.Effect<void, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) =>
@@ -267,30 +244,12 @@ export class DownloadTokenRepository {
           Effect.tryPromise({
             try: () =>
               db
-                .select()
-                .from(downloadTokens)
-                .where(eq(downloadTokens.id, id))
-                .limit(1),
-            catch: (error) =>
-              error instanceof Error ? error : new Error(String(error)),
+                .update(downloadTokens)
+                .set({ usedAt: new Date().toISOString() })
+                .where(eq(downloadTokens.id, id)),
+            catch: (error) => toRepoError(error),
           }),
-          Effect.flatMap((existingToken) => {
-            if (!existingToken[0]) {
-              return Effect.fail(new Error("Download token not found"));
-            }
-            return pipe(
-              Effect.tryPromise({
-                try: () =>
-                  db
-                    .update(downloadTokens)
-                    .set({ usedAt: new Date().toISOString() })
-                    .where(eq(downloadTokens.id, id)),
-                catch: (error) =>
-                  error instanceof Error ? error : new Error(String(error)),
-              }),
-              Effect.map(() => undefined)
-            );
-          })
+          Effect.map(() => undefined)
         )
       )
     );
