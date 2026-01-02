@@ -8,6 +8,7 @@ import { FileUtils } from "../utils/file.utils";
 import { ValidationUtils } from "../utils/validation.utils";
 import { Effect } from "effect";
 import { AppLayer } from "../effect/layers";
+import { DatabaseService } from "../effect/services/database.service";
 
 
 export class DocumentService {
@@ -54,22 +55,23 @@ export class DocumentService {
   }
 
 
-  static async getAllDocuments(): Promise<Result<Document[]>> {
-  const result = await DocumentRepository.findAll();
-  
-  if (!result.ok) {
-    return err(result.error);
+  /**
+   * Get all documents
+   * Refactored to use Effect for error handling and dependency injection
+   */
+  static getAllDocuments(): Effect.Effect<Document[], Error, DatabaseService> {
+    return Effect.gen(function* (_) {
+      const documents = yield* _(DocumentRepository.findAll());
+
+      // Format documents (parse metadataTags from JSON)
+      const formattedDocuments = documents.map((doc) => ({
+        ...doc,
+        metadataTags: doc.metadataTags ? JSON.parse(doc.metadataTags) : [],
+      }));
+
+      return formattedDocuments;
+    });
   }
-
-  // Format documents (parse metadataTags from JSON)
-  const formattedDocuments = result.value.map((doc) => ({
-    ...doc,
-    metadataTags: doc.metadataTags ? JSON.parse(doc.metadataTags) : [],
-  }));
-
-  return ok(formattedDocuments);
-
-}
 
   static async getDocumentById(id: number): Promise<Result<Document>> {
   const result = await DocumentRepository.findById(id);

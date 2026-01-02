@@ -15,7 +15,9 @@ export class DocumentRepository {
    * Refactored to use Effect for error handling and dependency injection
    */
   static create(data: NewDocument): Effect.Effect<Document, Error, DatabaseService> {
+    
     return Effect.gen(function* (_) {
+      
       const db = yield* _(DatabaseService);
 
       const result = yield* _(
@@ -37,135 +39,273 @@ export class DocumentRepository {
       );
 
       return result;
+
     });
   }
 
-  static findAll(): Promise<Result<Document[]>> {
+  /**
+   * Find all documents
+   * Refactored to use Effect for error handling and dependency injection
+   */
+  static findAll(): Effect.Effect<Document[], Error, DatabaseService> {
+    return Effect.gen(function* (_) {
+      const db = yield* _(DatabaseService);
 
-    return db
-      .select()
-      .from(documents)
-      .then((rows) => ok(rows))
-      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+      const rows = yield* _(
+        Effect.tryPromise({
+          try: () => db.select().from(documents),
+          catch: (error) =>
+            error instanceof Error ? error : new Error(String(error)),
+        })
+      );
 
+      return rows;
+    });
   }
 
-  static findById(id: number): Promise<Result<Document>> {
+  /**
+   * Find document by ID
+   * Refactored to use Effect for error handling and dependency injection
+   */
+  static findById(id: number): Effect.Effect<Document, Error, DatabaseService> {
+    return Effect.gen(function* (_) {
+      const db = yield* _(DatabaseService);
 
-    return db
-      .select()
-      .from(documents)
-      .where(eq(documents.id, id))
-      .limit(1)
-      .then(([document]) =>
-        document ? ok(document) : err(new Error("Document not found"))
-      )
-      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+      const rows = yield* _(
+        Effect.tryPromise({
+          try: () =>
+            db
+              .select()
+              .from(documents)
+              .where(eq(documents.id, id))
+              .limit(1),
+          catch: (error) =>
+            error instanceof Error ? error : new Error(String(error)),
+        })
+      );
 
+      if (!rows[0]) {
+        return yield* _(Effect.fail(new Error("Document not found")));
+      }
+
+      return rows[0];
+    });
   }
 
-  static update(id: number, data: Partial<Document>): Promise<Result<Document>> {
+  /**
+   * Update document by ID
+   * Refactored to use Effect for error handling and dependency injection
+   */
+  static update(id: number, data: Partial<Document>): Effect.Effect<Document, Error, DatabaseService> {
+    return Effect.gen(function* (_) {
+      const db = yield* _(DatabaseService);
 
-    return db
-      .update(documents)
-      .set({ ...data, updatedAt: new Date().toISOString() })
-      .where(eq(documents.id, id))
-      .returning()
-      .then(([document]) =>
-        document ? ok(document) : err(new Error("Document not found"))
-      )
-      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+      const rows = yield* _(
+        Effect.tryPromise({
+          try: () =>
+            db
+              .update(documents)
+              .set({ ...data, updatedAt: new Date().toISOString() })
+              .where(eq(documents.id, id))
+              .returning(),
+          catch: (error) =>
+            error instanceof Error ? error : new Error(String(error)),
+        })
+      );
 
+      if (!rows[0]) {
+        return yield* _(Effect.fail(new Error("Document not found")));
+      }
+
+      return rows[0];
+    });
   }
 
- static delete(id: number): Promise<Result<void>> {
+  /**
+   * Delete document by ID
+   * Refactored to use Effect for error handling and dependency injection
+   */
+  static delete(id: number): Effect.Effect<void, Error, DatabaseService> {
+    return Effect.gen(function* (_) {
+      const db = yield* _(DatabaseService);
 
-    return db
-      .delete(documents)
-      .where(eq(documents.id, id))
-      .then((res: any) => {
-        const affected =
-          res?.rowCount ?? res?.affectedRows ?? res?.length ?? (typeof res === "number" ? res : undefined);
-        return affected === 0
-          ? err(new Error("Document not found"))
-        : ok<void>(undefined);
-      })
-      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+      // First check if document exists
+      const existingDoc = yield* _(
+        Effect.tryPromise({
+          try: () =>
+            db
+              .select()
+              .from(documents)
+              .where(eq(documents.id, id))
+              .limit(1),
+          catch: (error) =>
+            error instanceof Error ? error : new Error(String(error)),
+        })
+      );
 
+      if (!existingDoc[0]) {
+        return yield* _(Effect.fail(new Error("Document not found")));
+      }
+
+      // Delete the document
+      yield* _(
+        Effect.tryPromise({
+          try: () => db.delete(documents).where(eq(documents.id, id)),
+          catch: (error) =>
+            error instanceof Error ? error : new Error(String(error)),
+        })
+      );
+
+      return undefined;
+    });
   }
 
-  static findByTags(searchTags: string[]): Promise<Result<Document[]>> {
+  /**
+   * Find documents by metadata tags
+   * Refactored to use Effect for error handling and dependency injection
+   */
+  static findByTags(searchTags: string[]): Effect.Effect<Document[], Error, DatabaseService> {
+    return Effect.gen(function* (_) {
+      const db = yield* _(DatabaseService);
 
-    return db
-      .select()
-      .from(documents)
-      .then((rows) => {
-        const filtered = rows.filter((doc) => {
-          if (!doc.metadataTags) return false;
-          const parsed = safeParseJSON<string[]>(doc.metadataTags);
-          if (!parsed.ok) return false;
-          const docTags = parsed.value;
-          return searchTags.some((searchTag) =>
-            docTags.some(
-              (docTag) =>
-                docTag.toLowerCase() === searchTag.toLowerCase() ||
-                docTag.toLowerCase().includes(searchTag.toLowerCase())
-            )
-          );
-        });
-        return ok(filtered);
-      })
-      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+      const rows = yield* _(
+        Effect.tryPromise({
+          try: () => db.select().from(documents),
+          catch: (error) =>
+            error instanceof Error ? error : new Error(String(error)),
+        })
+      );
+
+      // Filter documents by tags
+      const filtered = rows.filter((doc) => {
+        if (!doc.metadataTags) return false;
+        const parsed = safeParseJSON<string[]>(doc.metadataTags);
+        if (!parsed.ok) return false;
+        const docTags = parsed.value;
+        return searchTags.some((searchTag) =>
+          docTags.some(
+            (docTag) =>
+              docTag.toLowerCase() === searchTag.toLowerCase() ||
+              docTag.toLowerCase().includes(searchTag.toLowerCase())
+          )
+        );
+      });
+
+      return filtered;
+    });
   }
 
 }
 
 export class DownloadTokenRepository {
 
-  static create(data: NewDownloadToken): Promise<Result<DownloadToken>> {
-    return db
-      .insert(downloadTokens)
-      .values(data)
-      .returning()
-      .then(([token]) =>
-        token ? ok(token) : err(new Error("Failed to create download token"))
-      )
-      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+  /**
+   * Create a new download token
+   * Refactored to use Effect for error handling and dependency injection
+   */
+  static create(data: NewDownloadToken): Effect.Effect<DownloadToken, Error, DatabaseService> {
+    return Effect.gen(function* (_) {
+      const db = yield* _(DatabaseService);
 
+      const result = yield* _(
+        Effect.tryPromise({
+          try: () =>
+            db
+              .insert(downloadTokens)
+              .values(data)
+              .returning()
+              .then(([token]) => {
+                if (!token) {
+                  throw new Error("Failed to create download token");
+                }
+                return token;
+              }),
+          catch: (error) =>
+            error instanceof Error ? error : new Error(String(error)),
+        })
+      );
+
+      return result;
+    });
   }
 
-  static findValidToken(token: string): Promise<Result<DownloadToken>> {
+  /**
+   * Find a valid (non-expired and unused) download token
+   * Refactored to use Effect for error handling and dependency injection
+   */
+  static findValidToken(token: string): Effect.Effect<DownloadToken, Error, DatabaseService> {
+    return Effect.gen(function* (_) {
+      const db = yield* _(DatabaseService);
 
-    const now = new Date().toISOString();
-    return db
-      .select()
-      .from(downloadTokens)
-      .where(
-        and(
-          eq(downloadTokens.token, token),
-          gt(downloadTokens.expiresAt, now)
-        )
-      )
-      .limit(1)
-      .then(([tokenRecord]) =>
-        tokenRecord ? ok(tokenRecord) : err(new Error("Download token not found"))
-      )
-      .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+      const now = new Date().toISOString();
 
+      const rows = yield* _(
+        Effect.tryPromise({
+          try: () =>
+            db
+              .select()
+              .from(downloadTokens)
+              .where(
+                and(
+                  eq(downloadTokens.token, token),
+                  gt(downloadTokens.expiresAt, now)
+                )
+              )
+              .limit(1),
+          catch: (error) =>
+            error instanceof Error ? error : new Error(String(error)),
+        })
+      );
+
+      if (!rows[0]) {
+        return yield* _(Effect.fail(new Error("Download token not found")));
+      }
+
+      return rows[0];
+    });
   }
 
-  static markAsUsed(id: number): Promise<Result<void>> {
+  /**
+   * Mark a download token as used
+   * Refactored to use Effect for error handling and dependency injection
+   */
+  static markAsUsed(id: number): Effect.Effect<void, Error, DatabaseService> {
+    return Effect.gen(function* (_) {
+      const db = yield* _(DatabaseService);
 
-    return db
-      .update(downloadTokens)
-      .set({ usedAt: new Date().toISOString() })
-      .where(eq(downloadTokens.id, id))
-      .then((res: any) => {
-        const affected =
-          res?.rowCount ?? res?.affectedRows ?? (typeof res === "number" ? res : undefined) ?? res?.length;
-      return affected === 0 ? err(new Error("Download token not found")) : ok<void>(undefined);
-    })
-    .catch((e) => err(e instanceof Error ? e : new Error(String(e))));
+      // First check if token exists
+      const existingToken = yield* _(
+        Effect.tryPromise({
+          try: () =>
+            db
+              .select()
+              .from(downloadTokens)
+              .where(eq(downloadTokens.id, id))
+              .limit(1),
+          catch: (error) =>
+            error instanceof Error ? error : new Error(String(error)),
+        })
+      );
+
+      if (!existingToken[0]) {
+        return yield* _(Effect.fail(new Error("Download token not found")));
+      }
+
+      // Mark token as used
+      yield* _(
+        Effect.tryPromise({
+          try: () =>
+            db
+              .update(downloadTokens)
+              .set({ usedAt: new Date().toISOString() })
+              .where(eq(downloadTokens.id, id)),
+          catch: (error) =>
+            error instanceof Error ? error : new Error(String(error)),
+        })
+      );
+
+      return undefined;
+    });
   }
 
 }
