@@ -6,6 +6,8 @@ import type { DownloadToken } from "../models/download-token.model";
 import { ok, err, type Result } from "../utils/result";
 import { FileUtils } from "../utils/file.utils";
 import { ValidationUtils } from "../utils/validation.utils";
+import { Effect } from "effect";
+import { AppLayer } from "../effect/layers";
 
 
 export class DocumentService {
@@ -30,14 +32,24 @@ export class DocumentService {
     const saveResult = await FileUtils.saveFileToDisk(validatedFile.value, pathResult.value.filePath);
     if (!saveResult.ok) return saveResult;
   
-    // Save to database
-    return await DocumentRepository.create({
+    // Save to database (using Effect)
+    const createEffect = DocumentRepository.create({
       filename: pathResult.value.filename,
       originalFilename: validatedFile.value.name,
       filePath: pathResult.value.filePath,
       fileSize: validatedFile.value.size,
       metadataTags: JSON.stringify(metadataTags || []),
     });
+
+    // Run Effect with AppLayer and convert to Result
+    try {
+      const document = await Effect.runPromise(
+        Effect.provide(createEffect, AppLayer)
+      );
+      return ok(document);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
 
   }
 

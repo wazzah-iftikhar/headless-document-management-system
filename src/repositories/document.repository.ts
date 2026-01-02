@@ -6,6 +6,7 @@ import type { DownloadToken, NewDownloadToken } from "../models/download-token.m
 import { ok, err, type Result } from "../utils/result";
 import { safeParseJSON } from "../utils/safe-parse";
 import { DatabaseService } from "../effect/services/database.service";
+import { db } from "../config/database"; // Keep for non-migrated methods
 
 export class DocumentRepository {
 
