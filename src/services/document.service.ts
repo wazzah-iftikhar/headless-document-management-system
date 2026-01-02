@@ -298,7 +298,7 @@ export class DocumentService {
   /**
    * Download document by token
    * Refactored to use pipe and flatMap with Effect-based repository and file utils functions
-   * Maps RepoError to ServiceError and converts null to domain error
+   * Maps RepoError to ServiceError at boundary
    */
   static downloadDocumentByToken(token: string): Effect.Effect<{
     document: Document;
@@ -306,14 +306,10 @@ export class DocumentService {
   }, ServiceError, DatabaseService | ConfigService> {
     return pipe(
       DownloadTokenRepository.findValidToken(token),
-      // Map RepoError to ServiceError at boundary
+      // Map RepoError to ServiceError at boundary (handles TokenNotFound, TokenExpired, DB errors)
       Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "downloadDocumentByToken")),
-      // Convert null (not found/invalid/expired) to domain error
+      // Check if token is already used (domain validation)
       Effect.flatMap((downloadToken) => {
-        if (!downloadToken) {
-          return Effect.fail({ _tag: "DownloadTokenInvalid", token } as ServiceError);
-        }
-        // Check if token is already used
         if (downloadToken.usedAt) {
           return Effect.fail({ _tag: "DownloadTokenAlreadyUsed", token } as ServiceError);
         }

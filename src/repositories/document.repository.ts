@@ -205,9 +205,9 @@ export class DownloadTokenRepository {
 
   /**
    * Find a valid (non-expired and unused) download token
-   * Returns null if not found (modeled as data, not error per article)
+   * Fails with RepoError if token not found or expired
    */
-  static findValidToken(token: string): Effect.Effect<DownloadToken | null, RepoError, DatabaseService> {
+  static findValidToken(token: string): Effect.Effect<DownloadToken, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) => {
@@ -218,16 +218,21 @@ export class DownloadTokenRepository {
               db
                 .select()
                 .from(downloadTokens)
-                .where(
-                  and(
-                    eq(downloadTokens.token, token),
-                    gt(downloadTokens.expiresAt, now)
-                  )
-                )
+                .where(eq(downloadTokens.token, token))
                 .limit(1),
             catch: (error) => toRepoError(error),
           }),
-          Effect.map((rows) => rows[0] || null)
+          Effect.flatMap((rows) => {
+            if (!rows[0]) {
+              return Effect.fail({ _tag: "TokenNotFound", token } as RepoError);
+            }
+            const tokenRecord = rows[0];
+            // Check if token is expired
+            if (tokenRecord.expiresAt <= now) {
+              return Effect.fail({ _tag: "TokenExpired", token } as RepoError);
+            }
+            return Effect.succeed(tokenRecord);
+          })
         );
       })
     );

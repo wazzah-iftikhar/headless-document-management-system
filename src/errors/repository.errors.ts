@@ -6,7 +6,9 @@ export type RepoError =
   | { _tag: "DbConnectionError"; message: string }
   | { _tag: "DbTimeoutError"; message: string }
   | { _tag: "DbConstraintViolation"; constraint: string; message: string }
-  | { _tag: "DbUnknown"; message: string };
+  | { _tag: "DbUnknown"; message: string }
+  | { _tag: "TokenNotFound"; token: string }
+  | { _tag: "TokenExpired"; token: string };
 
 /**
  * Helper to convert generic Error to RepoError

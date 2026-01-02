@@ -30,14 +30,19 @@ export type ServiceInfraError =
 export type ServiceError = DomainError | ServiceInfraError;
 
 /**
- * Map RepoError to ServiceInfraError at service boundary
+ * Map RepoError to ServiceError at service boundary
  * This prevents repository errors from leaking to controllers
+ * Maps token errors to domain errors, DB errors to infrastructure errors
  */
 export const mapRepoErrorToServiceError = (
   repoError: RepoError,
   operation: string
-): ServiceInfraError => {
+): ServiceError => {
   switch (repoError._tag) {
+    case "TokenNotFound":
+      return { _tag: "DownloadTokenInvalid", token: repoError.token };
+    case "TokenExpired":
+      return { _tag: "DownloadTokenExpired", token: repoError.token };
     case "DbConnectionError":
     case "DbTimeoutError":
       return { _tag: "ServiceUnavailable", operation };
