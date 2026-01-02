@@ -7,14 +7,16 @@ import { ok, err, type Result } from "../utils/result";
 import { safeParseJSON } from "../utils/safe-parse";
 import { DatabaseService } from "../effect/services/database.service";
 import { db } from "../config/database"; // Keep for non-migrated methods
+import type { RepoError } from "../errors/repository.errors";
+import { toRepoError } from "../errors/repository.errors";
 
 export class DocumentRepository {
 
   /**
    * Create a new document
-   * Refactored to use Effect with explicit succeed/fail
+   * Refactored to use Effect with RepoError type
    */
-  static create(data: NewDocument): Effect.Effect<Document, Error, DatabaseService> {
+  static create(data: NewDocument): Effect.Effect<Document, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) =>
@@ -30,8 +32,7 @@ export class DocumentRepository {
                 }
                 return document;
               }),
-          catch: (error) =>
-            error instanceof Error ? error : new Error(String(error)),
+          catch: (error) => toRepoError(error),
         })
       )
     );

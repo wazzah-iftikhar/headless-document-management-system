@@ -17,24 +17,16 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
       const { file, metadataTags } = body;
 
       // Validate metadata tags if provided
-      const validationResult = uploadDocumentSchema.safeParse({
+      const bodyValidation = validateBody(uploadDocumentSchema, {
         metadataTags: metadataTags || [],
       });
-
-      if (!validationResult.success) {
-        return {
-          status: 400,
-          body: {
-            success: false,
-            message: "Validation error",
-            errors: validationResult.error.issues,
-          },
-        };
+      if (bodyValidation.error) {
+        return bodyValidation.error.body;
       }
 
       return DocumentController.uploadDocument(
         file,
-        validationResult.data.metadataTags
+        bodyValidation.data.metadataTags
       );
     },
     {
