@@ -58,7 +58,11 @@ export class DocumentRepository {
    * Find document by ID
    * Returns null if not found (modeled as data, not error per article)
    */
-  static findById(id: number): Effect.Effect<Document | null, RepoError, DatabaseService> {
+  /**
+   * Find document by ID
+   * Fails with RepoError if document not found
+   */
+  static findById(id: number): Effect.Effect<Document, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) =>
@@ -72,7 +76,12 @@ export class DocumentRepository {
                 .limit(1),
             catch: (error) => toRepoError(error),
           }),
-          Effect.map((rows) => rows[0] || null)
+          Effect.flatMap((rows) => {
+            if (!rows[0]) {
+              return Effect.fail({ _tag: "DocumentNotFound", documentId: id } as RepoError);
+            }
+            return Effect.succeed(rows[0]);
+          })
         )
       )
     );
@@ -80,9 +89,9 @@ export class DocumentRepository {
 
   /**
    * Update document by ID
-   * Returns null if not found (modeled as data, not error per article)
+   * Fails with RepoError if document not found
    */
-  static update(id: number, data: Partial<Document>): Effect.Effect<Document | null, RepoError, DatabaseService> {
+  static update(id: number, data: Partial<Document>): Effect.Effect<Document, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) =>
@@ -96,7 +105,12 @@ export class DocumentRepository {
                 .returning(),
             catch: (error) => toRepoError(error),
           }),
-          Effect.map((rows) => rows[0] || null)
+          Effect.flatMap((rows) => {
+            if (!rows[0]) {
+              return Effect.fail({ _tag: "DocumentNotFound", documentId: id } as RepoError);
+            }
+            return Effect.succeed(rows[0]);
+          })
         )
       )
     );
@@ -104,9 +118,9 @@ export class DocumentRepository {
 
   /**
    * Delete document by ID
-   * Returns null if not found (modeled as data, not error per article)
+   * Fails with RepoError if document not found
    */
-  static delete(id: number): Effect.Effect<Document | null, RepoError, DatabaseService> {
+  static delete(id: number): Effect.Effect<Document, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) =>
@@ -121,9 +135,9 @@ export class DocumentRepository {
             catch: (error) => toRepoError(error),
           }),
           Effect.flatMap((existingDoc) => {
-            const doc = existingDoc[0] || null;
+            const doc = existingDoc[0];
             if (!doc) {
-              return Effect.succeed(null);
+              return Effect.fail({ _tag: "DocumentNotFound", documentId: id } as RepoError);
             }
             return pipe(
               Effect.tryPromise({

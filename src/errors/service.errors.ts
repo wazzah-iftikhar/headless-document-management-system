@@ -39,6 +39,8 @@ export const mapRepoErrorToServiceError = (
   operation: string
 ): ServiceError => {
   switch (repoError._tag) {
+    case "DocumentNotFound":
+      return { _tag: "DocumentNotFound", documentId: repoError.documentId };
     case "TokenNotFound":
       return { _tag: "DownloadTokenInvalid", token: repoError.token };
     case "TokenExpired":
