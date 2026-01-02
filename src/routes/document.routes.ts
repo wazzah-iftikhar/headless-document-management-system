@@ -4,7 +4,11 @@ import {
   uploadDocumentSchema,
   updateDocumentSchema,
   searchDocumentSchema,
+  documentIdParamsSchema,
+  downloadTokenParamsSchema,
+  searchQuerySchema,
 } from "../validations/document.schema";
+import { validateParams, validateQuery, validateBody } from "../middleware/zod-validator";
 
 export const documentRoutes = new Elysia({ prefix: "/documents" })
   .post(
@@ -48,21 +52,14 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
   .get(
     "/search",
     async ({ query }) => {
-      // Support query parameter: ?tags=tag1,tag2,tag3
-      const tagsParam = query.tags;
-      let tags: string[] = [];
-
-      if (tagsParam) {
-        // Parse comma-separated tags
-        tags = typeof tagsParam === "string" 
-          ? tagsParam.split(",").map((tag) => tag.trim()).filter(Boolean)
-          : Array.isArray(tagsParam)
-          ? tagsParam.flatMap((t) => (typeof t === "string" ? t.split(",").map((tag) => tag.trim()) : []))
-          : [];
+      // Validate query params
+      const queryValidation = validateQuery(searchQuerySchema, query);
+      if (queryValidation.error) {
+        return queryValidation.error.body;
       }
 
-      // Validate tags
-      const validationResult = searchDocumentSchema.safeParse({ tags });
+      // Validate tags after transformation
+      const validationResult = searchDocumentSchema.safeParse({ tags: queryValidation.data.tags });
 
       if (!validationResult.success) {
         return {
@@ -87,20 +84,12 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
     "/search",
     async ({ body }) => {
       // Support POST with body: { tags: ["tag1", "tag2"] }
-      const validationResult = searchDocumentSchema.safeParse(body);
-
-      if (!validationResult.success) {
-        return {
-          status: 400,
-          body: {
-            success: false,
-            message: "Validation error",
-            errors: validationResult.error.issues,
-          },
-        };
+      const bodyValidation = validateBody(searchDocumentSchema, body);
+      if (bodyValidation.error) {
+        return bodyValidation.error.body;
       }
 
-      return DocumentController.searchDocumentsByTags(validationResult.data.tags);
+      return DocumentController.searchDocumentsByTags(bodyValidation.data.tags);
     },
     {
       body: t.Object({
@@ -111,17 +100,13 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
   .get(
     "/:id",
     async ({ params }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
-        return {
-          status: 400,
-          body: {
-            success: false,
-            message: "Invalid document ID",
-          },
-        };
+      // Validate params
+      const paramsValidation = validateParams(documentIdParamsSchema, params);
+      if (paramsValidation.error) {
+        return paramsValidation.error.body;
       }
-      return DocumentController.getDocumentById(id);
+
+      return DocumentController.getDocumentById(paramsValidation.data.id);
     },
     {
       params: t.Object({
@@ -132,34 +117,21 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
   .put(
     "/:id",
     async ({ params, body }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
-        return {
-          status: 400,
-          body: {
-            success: false,
-            message: "Invalid document ID",
-          },
-        };
+      // Validate params
+      const paramsValidation = validateParams(documentIdParamsSchema, params);
+      if (paramsValidation.error) {
+        return paramsValidation.error.body;
       }
 
       // Validate request body
-      const validationResult = updateDocumentSchema.safeParse(body);
-
-      if (!validationResult.success) {
-        return {
-          status: 400,
-          body: {
-            success: false,
-            message: "Validation error",
-            errors: validationResult.error.issues,
-          },
-        };
+      const bodyValidation = validateBody(updateDocumentSchema, body);
+      if (bodyValidation.error) {
+        return bodyValidation.error.body;
       }
 
       return DocumentController.updateDocument(
-        id,
-        validationResult.data.metadataTags
+        paramsValidation.data.id,
+        bodyValidation.data.metadataTags
       );
     },
     {
@@ -174,17 +146,13 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
   .delete(
     "/:id",
     async ({ params }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
-        return {
-          status: 400,
-          body: {
-            success: false,
-            message: "Invalid document ID",
-          },
-        };
+      // Validate params
+      const paramsValidation = validateParams(documentIdParamsSchema, params);
+      if (paramsValidation.error) {
+        return paramsValidation.error.body;
       }
-      return DocumentController.deleteDocument(id);
+
+      return DocumentController.deleteDocument(paramsValidation.data.id);
     },
     {
       params: t.Object({
@@ -195,17 +163,13 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
   .post(
     "/:id/download-link",
     async ({ params }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
-        return {
-          status: 400,
-          body: {
-            success: false,
-            message: "Invalid document ID",
-          },
-        };
+      // Validate params
+      const paramsValidation = validateParams(documentIdParamsSchema, params);
+      if (paramsValidation.error) {
+        return paramsValidation.error.body;
       }
-      return DocumentController.generateDownloadLink(id);
+
+      return DocumentController.generateDownloadLink(paramsValidation.data.id);
     },
     {
       params: t.Object({
@@ -216,17 +180,13 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
   .get(
     "/download/:token",
     async ({ params }) => {
-      const { token } = params;
-      if (!token) {
-        return {
-          status: 400,
-          body: {
-            success: false,
-            message: "Download token is required",
-          },
-        };
+      // Validate params
+      const paramsValidation = validateParams(downloadTokenParamsSchema, params);
+      if (paramsValidation.error) {
+        return paramsValidation.error.body;
       }
-      return DocumentController.downloadDocumentByToken(token);
+
+      return DocumentController.downloadDocumentByToken(paramsValidation.data.token);
     },
     {
       params: t.Object({
