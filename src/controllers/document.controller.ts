@@ -2,198 +2,243 @@ import { DocumentService } from "../services/document.service";
 import { successResponse, errorResponse } from "../utils/response";
 import { config } from "../config/app";
 import { HttpUtils } from "../utils/http.utils";
+import { Effect } from "effect";
+import { AppLayer } from "../effect/layers";
 
 
 export class DocumentController {
   /**
    * Upload a PDF document
    */
+  /**
+   * Upload a PDF document
+   * Refactored to use Effect-based service
+   */
   static async uploadDocument(file: File, metadataTags?: string[]) {
-    const result = await DocumentService.createDocument(file, metadataTags);
-    
-    if (!result.ok) {
+    try {
+      const document = await Effect.runPromise(
+        Effect.provide(DocumentService.createDocument(file, metadataTags), AppLayer)
+      );
+
       return {
-        status: HttpUtils.getStatusFromError(result.error),
-        body: errorResponse(result.error.message),
+        status: 201,
+        body: successResponse(
+          {
+            id: document.id,
+            filename: document.filename,
+            originalFilename: document.originalFilename,
+            fileSize: document.fileSize,
+            metadataTags: metadataTags || [],
+            createdAt: document.createdAt,
+          },
+          "Document uploaded successfully"
+        ),
+      };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+      return {
+        status,
+        body: errorResponse(err.message),
       };
     }
-  
-    return {
-      status: 201,
-      body: successResponse(
-        {
-          id: result.value.id,
-          filename: result.value.filename,
-          originalFilename: result.value.originalFilename,
-          fileSize: result.value.fileSize,
-          metadataTags: metadataTags || [],
-          createdAt: result.value.createdAt,
-        },
-        "Document uploaded successfully"
-      ),
-    };
   }
 
   /**
    * Get all documents
+   * Refactored to use Effect-based service
    */
   static async getAllDocuments() {
-    const result = await DocumentService.getAllDocuments();
-    
-    if (!result.ok) {
+    try {
+      const documents = await Effect.runPromise(
+        Effect.provide(DocumentService.getAllDocuments(), AppLayer)
+      );
+
       return {
-        status: HttpUtils.getStatusFromError(result.error),
-        body: errorResponse(result.error.message),
+        status: 200,
+        body: successResponse(documents),
+      };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+      return {
+        status,
+        body: errorResponse(err.message),
       };
     }
-  
-    return {
-      status: 200,
-      body: successResponse(result.value),
-    };
   }
 
   /**
    * Get document by ID
+   * Refactored to use Effect-based service
    */
   static async getDocumentById(id: number) {
-    const result = await DocumentService.getDocumentById(id);
-    
-    if (!result.ok) {
+    try {
+      const document = await Effect.runPromise(
+        Effect.provide(DocumentService.getDocumentById(id), AppLayer)
+      );
+
       return {
-        status: HttpUtils.getStatusFromError(result.error),
-        body: errorResponse(result.error.message),
+        status: 200,
+        body: successResponse(document),
+      };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+      return {
+        status,
+        body: errorResponse(err.message),
       };
     }
-  
-    return {
-      status: 200,
-      body: successResponse(result.value),
-    };
   }
 
   /**
    * Update document metadata
+   * Refactored to use Effect-based service
    */
   static async updateDocument(id: number, metadataTags?: string[]) {
-    const result = await DocumentService.updateDocument(id, metadataTags);
-    
-    if (!result.ok) {
+    try {
+      const document = await Effect.runPromise(
+        Effect.provide(DocumentService.updateDocument(id, metadataTags), AppLayer)
+      );
+
       return {
-        status: HttpUtils.getStatusFromError(result.error),
-        body: errorResponse(result.error.message),
+        status: 200,
+        body: successResponse(document, "Document updated successfully"),
+      };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+      return {
+        status,
+        body: errorResponse(err.message),
       };
     }
-  
-    return {
-      status: 200,
-      body: successResponse(result.value, "Document updated successfully"),
-    };
   }
 
   /**
    * Delete document
+   * Refactored to use Effect-based service
    */
   static async deleteDocument(id: number) {
-    const result = await DocumentService.deleteDocument(id);
-    
-    if (!result.ok) {
+    try {
+      const document = await Effect.runPromise(
+        Effect.provide(DocumentService.deleteDocument(id), AppLayer)
+      );
+
       return {
-        status: HttpUtils.getStatusFromError(result.error),
-        body: errorResponse(result.error.message),
+        status: 200,
+        body: successResponse(
+          {
+            id: document.id,
+            filename: document.filename,
+          },
+          "Document deleted successfully"
+        ),
+      };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+      return {
+        status,
+        body: errorResponse(err.message),
       };
     }
-  
-    return {
-      status: 200,
-      body: successResponse(
-        {
-          id: result.value.id,
-          filename: result.value.filename,
-        },
-        "Document deleted successfully"
-      ),
-    };
   }
 
   /**
    * Search documents by metadata tags
+   * Refactored to use Effect-based service
    */
   static async searchDocumentsByTags(searchTags: string[]) {
-    const result = await DocumentService.searchDocumentsByTags(searchTags);
-    
-    if (!result.ok) {
+    try {
+      const documents = await Effect.runPromise(
+        Effect.provide(DocumentService.searchDocumentsByTags(searchTags), AppLayer)
+      );
+
       return {
-        status: HttpUtils.getStatusFromError(result.error),
-        body: errorResponse(result.error.message),
+        status: 200,
+        body: successResponse(
+          {
+            documents,
+            count: documents.length,
+            searchTags,
+          },
+          `Found ${documents.length} document(s) matching the search criteria`
+        ),
+      };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+      return {
+        status,
+        body: errorResponse(err.message),
       };
     }
-  
-    return {
-      status: 200,
-      body: successResponse(
-        {
-          documents: result.value,
-          count: result.value.length,
-          searchTags,
-        },
-        `Found ${result.value.length} document(s) matching the search criteria`
-      ),
-    };
   }
 
   /**
    * Generate a short-lived download link for a document
+   * Refactored to use Effect-based service
    */
   static async generateDownloadLink(documentId: number) {
-    const result = await DocumentService.generateDownloadLink(documentId);
-    
-    if (!result.ok) {
+    try {
+      const downloadLink = await Effect.runPromise(
+        Effect.provide(DocumentService.generateDownloadLink(documentId), AppLayer)
+      );
+
       return {
-        status: HttpUtils.getStatusFromError(result.error),
-        body: errorResponse(result.error.message),
+        status: 200,
+        body: successResponse(
+          {
+            downloadUrl: downloadLink.downloadUrl,
+            token: downloadLink.token,
+            expiresAt: downloadLink.expiresAt,
+            expiresInMinutes: config.downloadLinkExpiryMinutes,
+            documentId: downloadLink.document.id,
+            originalFilename: downloadLink.document.originalFilename,
+          },
+          "Download link generated successfully"
+        ),
+      };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const status = Effect.runSync(HttpUtils.getStatusFromError(err));
+      return {
+        status,
+        body: errorResponse(err.message),
       };
     }
-  
-    return {
-      status: 200,
-      body: successResponse(
-        {
-          downloadUrl: result.value.downloadUrl,
-          token: result.value.token,
-          expiresAt: result.value.expiresAt,
-          expiresInMinutes: config.downloadLinkExpiryMinutes,
-          documentId: result.value.document.id,
-          originalFilename: result.value.document.originalFilename,
-        },
-        "Download link generated successfully"
-      ),
-    };
   }
 
   /**
    * Download document using a token
+   * Refactored to use Effect-based service
    */
   static async downloadDocumentByToken(token: string) {
-    const result = await DocumentService.downloadDocumentByToken(token);
-    
-    if (!result.ok) {
+    try {
+      const downloadData = await Effect.runPromise(
+        Effect.provide(DocumentService.downloadDocumentByToken(token), AppLayer)
+      );
+
+      // Return file for download
+      const file = Bun.file(downloadData.filePath);
+
+      return new Response(file, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="${downloadData.document.originalFilename}"`,
+          "Content-Length": downloadData.document.fileSize.toString(),
+        },
+      });
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const status = Effect.runSync(HttpUtils.getStatusFromError(err));
       return {
-        status: HttpUtils.getStatusFromError(result.error),
-        body: errorResponse(result.error.message),
+        status,
+        body: errorResponse(err.message),
       };
     }
-  
-    // Return file for download
-    const file = Bun.file(result.value.filePath);
-  
-    return new Response(file, {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${result.value.document.originalFilename}"`,
-        "Content-Length": result.value.document.fileSize.toString(),
-      },
-    });
   }
   
 }
