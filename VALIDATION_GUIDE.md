@@ -2,11 +2,11 @@
 
 ## Overview
 
-The project now has comprehensive Zod-based validation for all requests and responses. This ensures type safety and consistent error handling throughout the API.
+The project now has comprehensive Effect Schema-based validation for all requests and responses. This ensures type safety and consistent error handling throughout the API.
 
 ## What Was Implemented
 
-### 1. Comprehensive Zod Schemas (`src/validations/document.schema.ts`)
+### 1. Comprehensive Effect Schema Schemas (`src/validations/document.schema.ts`)
 
 **Request Schemas:**
 - `uploadDocumentSchema` - Validates metadata tags for uploads
@@ -27,7 +27,7 @@ The project now has comprehensive Zod-based validation for all requests and resp
 - `successResponseSchema<T>` - Generic success response wrapper
 - `errorResponseSchema` - Error response wrapper
 
-### 2. Validation Middleware (`src/middleware/zod-validator.ts`)
+### 2. Validation Middleware (`src/middleware/schema-validator.ts`)
 
 **Functions:**
 - `validateParams(schema, params)` - Validates route parameters
@@ -42,11 +42,18 @@ The project now has comprehensive Zod-based validation for all requests and resp
 
 ### 3. Refactored Routes (`src/routes/document.routes.ts`)
 
-All routes now use consistent Zod validation:
-- **Params validation**: All routes with `:id` or `:token` use Zod schemas
+All routes now use consistent Effect Schema validation:
+- **Params validation**: All routes with `:id` or `:token` use Effect Schema schemas
 - **Query validation**: Search endpoint validates query params
 - **Body validation**: Update and search POST endpoints validate request bodies
 - **Type transformation**: ID params are automatically converted from string to number
+
+### 4. Response Validation (`src/controllers/document.controller.ts`)
+
+All controller methods now validate responses before sending:
+- **Inwards validation**: All incoming requests are validated (params, query, body)
+- **Outwards validation**: All outgoing responses are validated against response schemas
+- Ensures API contract compliance and catches bugs early
 
 ## Usage Examples
 
@@ -108,9 +115,12 @@ All routes now use consistent Zod validation:
 
     // queryValidation.data.tags is now a string array
     // Further validation for minimum tags
-    const validationResult = searchDocumentSchema.safeParse({ 
+    const validationResult = validateBody(searchDocumentSchema, { 
       tags: queryValidation.data.tags 
     });
+    if (validationResult.error) {
+      return validationResult.error.body;
+    }
     // ...
   }
 )
@@ -121,27 +131,36 @@ All routes now use consistent Zod validation:
 1. **Type Safety**: All validated data is properly typed
 2. **Consistent Validation**: All routes use the same validation pattern
 3. **Automatic Transformation**: Params are automatically converted (e.g., string → number)
-4. **Better Error Messages**: Zod provides detailed validation error messages
-5. **Response Validation**: Schemas available for response validation (optional)
-6. **Effect-Ready**: Zod schemas can easily be converted to Effect schemas later
+4. **Better Error Messages**: Effect Schema provides detailed validation error messages
+5. **Response Validation**: All responses are validated against schemas before sending
+6. **Effect Integration**: Built on Effect Schema for functional programming patterns
+7. **Bidirectional Validation**: Both incoming requests and outgoing responses are validated
 
-## Response Validation (Optional)
+## Response Validation
 
-You can optionally validate responses in development:
+Response validation is automatically applied in all controllers:
 
 ```typescript
-import { validateResponse, successResponseSchema } from "../middleware/zod-validator";
-import { documentResponseSchema } from "../validations/document.schema";
+import { validateResponse } from "../middleware/schema-validator";
+import { documentResponseSchema, successResponseSchema } from "../validations/document.schema";
 
-// In controller or service
-const response = successResponseSchema(documentResponseSchema);
-const validated = validateResponse(data, response);
+// In controller
+const responseData = {
+  id: document.id,
+  filename: document.filename,
+  // ... other fields
+};
+const validatedData = validateResponse(responseData, documentResponseSchema);
+const response = successResponse(validatedData, "Success message");
+return {
+  status: 200,
+  body: validateResponse(response, successResponseSchema(documentResponseSchema)),
+};
 ```
 
-## Next Steps
-
-When migrating to Effect:
-- Zod schemas can be converted to Effect Schema
-- Validation functions can become Effect operations
-- Type safety will be maintained throughout
+This ensures that:
+- Response data matches the expected schema
+- API contracts are enforced
+- Bugs are caught early in development
+- Type safety is maintained throughout the response pipeline
 
