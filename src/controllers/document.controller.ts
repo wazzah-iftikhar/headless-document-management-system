@@ -7,6 +7,17 @@ import { AppLayer } from "../effect/layers";
 import type { Document } from "../models";
 import type { HttpError } from "../errors/controller.errors";
 import { mapServiceErrorToHttpError, httpErrorToStatus } from "../errors/controller.errors";
+import { validateResponse } from "../middleware/schema-validator";
+import {
+  uploadDocumentResponseSchema,
+  documentListResponseSchema,
+  documentResponseSchema,
+  updateDocumentResponseSchema,
+  deleteDocumentResponseSchema,
+  searchDocumentsResponseSchema,
+  downloadLinkResponseSchema,
+  successResponseSchema,
+} from "../validations/document.schema";
 
 
 export class DocumentController {
@@ -33,20 +44,22 @@ export class DocumentController {
               body: errorResponse(httpError.message),
             };
           },
-          onSuccess: (document: Document) => ({
-            status: 201,
-            body: successResponse(
-              {
-                id: document.id,
-                filename: document.filename,
-                originalFilename: document.originalFilename,
-                fileSize: document.fileSize,
-                metadataTags: metadataTags || [],
-                createdAt: document.createdAt,
-              },
-              "Document uploaded successfully"
-            ),
-          }),
+          onSuccess: (document: Document) => {
+            const responseData = {
+              id: document.id,
+              filename: document.filename,
+              originalFilename: document.originalFilename,
+              fileSize: document.fileSize,
+              metadataTags: metadataTags || [],
+              createdAt: document.createdAt,
+            };
+            const validatedData = validateResponse(responseData, uploadDocumentResponseSchema);
+            const response = successResponse(validatedData, "Document uploaded successfully");
+            return {
+              status: 201,
+              body: validateResponse(response, successResponseSchema(uploadDocumentResponseSchema)),
+            };
+          },
         })
       )
     );
@@ -72,10 +85,14 @@ export class DocumentController {
               body: errorResponse(httpError.message),
             };
           },
-          onSuccess: (documents: Document[]) => ({
-            status: 200,
-            body: successResponse(documents),
-          }),
+          onSuccess: (documents: Document[]) => {
+            const validatedData = validateResponse(documents, documentListResponseSchema);
+            const response = successResponse(validatedData);
+            return {
+              status: 200,
+              body: validateResponse(response, successResponseSchema(documentListResponseSchema)),
+            };
+          },
         })
       )
     );
@@ -101,10 +118,14 @@ export class DocumentController {
               body: errorResponse(httpError.message),
             };
           },
-          onSuccess: (document: Document) => ({
-            status: 200,
-            body: successResponse(document),
-          }),
+          onSuccess: (document: Document) => {
+            const validatedData = validateResponse(document, documentResponseSchema);
+            const response = successResponse(validatedData);
+            return {
+              status: 200,
+              body: validateResponse(response, successResponseSchema(documentResponseSchema)),
+            };
+          },
         })
       )
     );
@@ -130,10 +151,14 @@ export class DocumentController {
               body: errorResponse(httpError.message),
             };
           },
-          onSuccess: (document: Document) => ({
-            status: 200,
-            body: successResponse(document, "Document updated successfully"),
-          }),
+          onSuccess: (document: Document) => {
+            const validatedData = validateResponse(document, updateDocumentResponseSchema);
+            const response = successResponse(validatedData, "Document updated successfully");
+            return {
+              status: 200,
+              body: validateResponse(response, successResponseSchema(updateDocumentResponseSchema)),
+            };
+          },
         })
       )
     );
@@ -159,16 +184,18 @@ export class DocumentController {
               body: errorResponse(httpError.message),
             };
           },
-          onSuccess: (document: Document) => ({
-            status: 200,
-            body: successResponse(
-              {
-                id: document.id,
-                filename: document.filename,
-              },
-              "Document deleted successfully"
-            ),
-          }),
+          onSuccess: (document: Document) => {
+            const responseData = {
+              id: document.id,
+              filename: document.filename,
+            };
+            const validatedData = validateResponse(responseData, deleteDocumentResponseSchema);
+            const response = successResponse(validatedData, "Document deleted successfully");
+            return {
+              status: 200,
+              body: validateResponse(response, successResponseSchema(deleteDocumentResponseSchema)),
+            };
+          },
         })
       )
     );
@@ -194,17 +221,22 @@ export class DocumentController {
               body: errorResponse(httpError.message),
             };
           },
-          onSuccess: (documents: Document[]) => ({
-            status: 200,
-            body: successResponse(
-              {
-                documents,
-                count: documents.length,
-                searchTags,
-              },
+          onSuccess: (documents: Document[]) => {
+            const responseData = {
+              documents,
+              count: documents.length,
+              searchTags,
+            };
+            const validatedData = validateResponse(responseData, searchDocumentsResponseSchema);
+            const response = successResponse(
+              validatedData,
               `Found ${documents.length} document(s) matching the search criteria`
-            ),
-          }),
+            );
+            return {
+              status: 200,
+              body: validateResponse(response, successResponseSchema(searchDocumentsResponseSchema)),
+            };
+          },
         })
       )
     );
@@ -230,20 +262,22 @@ export class DocumentController {
               body: errorResponse(httpError.message),
             };
           },
-          onSuccess: (downloadLink) => ({
-            status: 200,
-            body: successResponse(
-              {
-                downloadUrl: downloadLink.downloadUrl,
-                token: downloadLink.token,
-                expiresAt: downloadLink.expiresAt,
-                expiresInMinutes: config.downloadLinkExpiryMinutes,
-                documentId: downloadLink.document.id,
-                originalFilename: downloadLink.document.originalFilename,
-              },
-              "Download link generated successfully"
-            ),
-          }),
+          onSuccess: (downloadLink) => {
+            const responseData = {
+              downloadUrl: downloadLink.downloadUrl,
+              token: downloadLink.token,
+              expiresAt: downloadLink.expiresAt,
+              expiresInMinutes: config.downloadLinkExpiryMinutes,
+              documentId: downloadLink.document.id,
+              originalFilename: downloadLink.document.originalFilename,
+            };
+            const validatedData = validateResponse(responseData, downloadLinkResponseSchema);
+            const response = successResponse(validatedData, "Download link generated successfully");
+            return {
+              status: 200,
+              body: validateResponse(response, successResponseSchema(downloadLinkResponseSchema)),
+            };
+          },
         })
       )
     );
