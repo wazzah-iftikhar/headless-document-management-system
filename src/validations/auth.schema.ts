@@ -1,2 +1,2 @@
-// Zod validation schemas for authentication
+// Effect Schema validation schemas for authentication
 

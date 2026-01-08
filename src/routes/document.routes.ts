@@ -8,7 +8,7 @@ import {
   downloadTokenParamsSchema,
   searchQuerySchema,
 } from "../validations/document.schema";
-import { validateParams, validateQuery, validateBody } from "../middleware/zod-validator";
+import { validateParams, validateQuery, validateBody } from "../middleware/schema-validator";
 
 export const documentRoutes = new Elysia({ prefix: "/documents" })
   .post(
@@ -18,7 +18,7 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
 
       // Validate metadata tags if provided
       const bodyValidation = validateBody(uploadDocumentSchema, {
-        metadataTags: metadataTags || [],
+        metadataTags: metadataTags,
       });
       if (bodyValidation.error) {
         return bodyValidation.error.body;
@@ -26,7 +26,7 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
 
       return DocumentController.uploadDocument(
         file,
-        bodyValidation.data.metadataTags
+        bodyValidation.data.metadataTags ? [...bodyValidation.data.metadataTags] : []
       );
     },
     {
@@ -51,20 +51,12 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
       }
 
       // Validate tags after transformation
-      const validationResult = searchDocumentSchema.safeParse({ tags: queryValidation.data.tags });
-
-      if (!validationResult.success) {
-        return {
-          status: 400,
-          body: {
-            success: false,
-            message: "Validation error",
-            errors: validationResult.error.issues,
-          },
-        };
+      const validationResult = validateBody(searchDocumentSchema, { tags: queryValidation.data.tags });
+      if (validationResult.error) {
+        return validationResult.error.body;
       }
 
-      return DocumentController.searchDocumentsByTags(validationResult.data.tags);
+      return DocumentController.searchDocumentsByTags([...validationResult.data.tags]);
     },
     {
       query: t.Object({
@@ -81,7 +73,7 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
         return bodyValidation.error.body;
       }
 
-      return DocumentController.searchDocumentsByTags(bodyValidation.data.tags);
+      return DocumentController.searchDocumentsByTags([...bodyValidation.data.tags]);
     },
     {
       body: t.Object({
@@ -123,7 +115,7 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
 
       return DocumentController.updateDocument(
         paramsValidation.data.id,
-        bodyValidation.data.metadataTags
+        bodyValidation.data.metadataTags ? [...bodyValidation.data.metadataTags] : undefined
       );
     },
     {

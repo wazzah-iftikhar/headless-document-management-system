@@ -1,99 +1,125 @@
-import { z } from "zod";
+import { Schema } from "@effect/schema";
+import { pipe } from "effect";
 
 // Request Schemas
-export const uploadDocumentSchema = z.object({
-  metadataTags: z.array(z.string()).optional().default([]),
+export const uploadDocumentSchema = Schema.Struct({
+  metadataTags: Schema.optional(Schema.Array(Schema.String)),
 });
 
-export const updateDocumentSchema = z.object({
-  metadataTags: z.array(z.string()).optional(),
+export const updateDocumentSchema = Schema.Struct({
+  metadataTags: Schema.optional(Schema.Array(Schema.String)),
 });
 
-export const searchDocumentSchema = z.object({
-  tags: z.array(z.string()).min(1, "At least one tag is required for search"),
+export const searchDocumentSchema = Schema.Struct({
+  tags: pipe(
+    Schema.Array(Schema.String),
+    Schema.filter((arr) => arr.length >= 1, { message: () => "At least one tag is required for search" })
+  ),
 });
 
-export const documentIdParamsSchema = z.object({
-  id: z.string().regex(/^\d+$/, "ID must be a valid number").transform(Number),
+// Helper to transform string to number for ID
+const stringToNumber = pipe(
+  Schema.String,
+  Schema.filter((str) => /^\d+$/.test(str), { message: () => "ID must be a valid number" }),
+  Schema.transform(Schema.Number, {
+    decode: (str) => Number(str),
+    encode: (num) => String(num),
+  })
+);
+
+export const documentIdParamsSchema = Schema.Struct({
+  id: stringToNumber,
 });
 
-export const downloadTokenParamsSchema = z.object({
-  token: z.string().min(1, "Token is required"),
+export const downloadTokenParamsSchema = Schema.Struct({
+  token: pipe(
+    Schema.String,
+    Schema.filter((str) => str.length >= 1, { message: () => "Token is required" })
+  ),
 });
 
-export const searchQuerySchema = z.object({
-  tags: z.union([z.string(), z.array(z.string())]).transform((val) => {
-    if (typeof val === "string") {
-      return val.split(",").map((tag) => tag.trim()).filter(Boolean);
-    }
-    return val.flatMap((t) => 
-      typeof t === "string" ? t.split(",").map((tag) => tag.trim()) : []
-    );
-  }),
+// Helper to transform query tags
+const queryTagsTransform = pipe(
+  Schema.Union(Schema.String, Schema.Array(Schema.String)),
+  Schema.transform(Schema.Array(Schema.String), {
+    decode: (val) => {
+      if (typeof val === "string") {
+        return val.split(",").map((tag) => tag.trim()).filter(Boolean);
+      }
+      return val.flatMap((t) =>
+        typeof t === "string" ? t.split(",").map((tag) => tag.trim()) : []
+      );
+    },
+    encode: (arr) => arr, // reverse transform (not used in practice)
+  })
+);
+
+export const searchQuerySchema = Schema.Struct({
+  tags: queryTagsTransform,
 });
 
 // Response Schemas
-export const documentResponseSchema = z.object({
-  id: z.number(),
-  filename: z.string(),
-  originalFilename: z.string(),
-  fileSize: z.number(),
-  metadataTags: z.array(z.string()),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+export const documentResponseSchema = Schema.Struct({
+  id: Schema.Number,
+  filename: Schema.String,
+  originalFilename: Schema.String,
+  fileSize: Schema.Number,
+  metadataTags: Schema.Array(Schema.String),
+  createdAt: Schema.String,
+  updatedAt: Schema.String,
 });
 
-export const documentListResponseSchema = z.array(documentResponseSchema);
+export const documentListResponseSchema = Schema.Array(documentResponseSchema);
 
-export const uploadDocumentResponseSchema = z.object({
-  id: z.number(),
-  filename: z.string(),
-  originalFilename: z.string(),
-  fileSize: z.number(),
-  metadataTags: z.array(z.string()),
-  createdAt: z.string(),
+export const uploadDocumentResponseSchema = Schema.Struct({
+  id: Schema.Number,
+  filename: Schema.String,
+  originalFilename: Schema.String,
+  fileSize: Schema.Number,
+  metadataTags: Schema.Array(Schema.String),
+  createdAt: Schema.String,
 });
 
 export const updateDocumentResponseSchema = documentResponseSchema;
 
-export const deleteDocumentResponseSchema = z.object({
-  id: z.number(),
-  filename: z.string(),
+export const deleteDocumentResponseSchema = Schema.Struct({
+  id: Schema.Number,
+  filename: Schema.String,
 });
 
-export const searchDocumentsResponseSchema = z.object({
+export const searchDocumentsResponseSchema = Schema.Struct({
   documents: documentListResponseSchema,
-  count: z.number(),
-  searchTags: z.array(z.string()),
+  count: Schema.Number,
+  searchTags: Schema.Array(Schema.String),
 });
 
-export const downloadLinkResponseSchema = z.object({
-  downloadUrl: z.string(),
-  token: z.string(),
-  expiresAt: z.string(),
-  expiresInMinutes: z.number(),
-  documentId: z.number(),
-  originalFilename: z.string(),
+export const downloadLinkResponseSchema = Schema.Struct({
+  downloadUrl: Schema.String,
+  token: Schema.String,
+  expiresAt: Schema.String,
+  expiresInMinutes: Schema.Number,
+  documentId: Schema.Number,
+  originalFilename: Schema.String,
 });
 
 // Standard API Response Wrapper
-export const successResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
-  z.object({
-    success: z.literal(true),
-    message: z.string().optional(),
+export const successResponseSchema = <A, I>(dataSchema: Schema.Schema<A, I>) =>
+  Schema.Struct({
+    success: Schema.Literal(true),
+    message: Schema.optional(Schema.String),
     data: dataSchema,
   });
 
-export const errorResponseSchema = z.object({
-  success: z.literal(false),
-  message: z.string(),
-  errors: z.unknown().optional(),
+export const errorResponseSchema = Schema.Struct({
+  success: Schema.Literal(false),
+  message: Schema.String,
+  errors: Schema.optional(Schema.Unknown),
 });
 
 // Type exports
-export type DocumentResponse = z.infer<typeof documentResponseSchema>;
-export type UploadDocumentResponse = z.infer<typeof uploadDocumentResponseSchema>;
-export type UpdateDocumentResponse = z.infer<typeof updateDocumentResponseSchema>;
-export type DeleteDocumentResponse = z.infer<typeof deleteDocumentResponseSchema>;
-export type SearchDocumentsResponse = z.infer<typeof searchDocumentsResponseSchema>;
-export type DownloadLinkResponse = z.infer<typeof downloadLinkResponseSchema>;
+export type DocumentResponse = Schema.Schema.Type<typeof documentResponseSchema>;
+export type UploadDocumentResponse = Schema.Schema.Type<typeof uploadDocumentResponseSchema>;
+export type UpdateDocumentResponse = Schema.Schema.Type<typeof updateDocumentResponseSchema>;
+export type DeleteDocumentResponse = Schema.Schema.Type<typeof deleteDocumentResponseSchema>;
+export type SearchDocumentsResponse = Schema.Schema.Type<typeof searchDocumentsResponseSchema>;
+export type DownloadLinkResponse = Schema.Schema.Type<typeof downloadLinkResponseSchema>;
