@@ -1,5 +1,6 @@
 import { Schema } from "@effect/schema";
-import { pipe } from "effect";
+import { Effect, pipe } from "effect";
+import type { ParseError } from "@effect/schema/ParseError";
 
 /**
  * File path validation - must be a non-empty string
@@ -35,3 +36,77 @@ export const FileReferenceSchema = Schema.Struct({
 });
 
 export type FileReference = Schema.Schema.Type<typeof FileReferenceSchema>;
+
+/**
+ * FileReference Value Object
+ * 
+ * Encapsulates file reference information (filename, originalFilename, filePath).
+ * Immutable with value semantics.
+ */
+export class FileReferenceVO {
+  private constructor(
+    private readonly filename: string,
+    private readonly originalFilename: string,
+    private readonly filePath: string
+  ) {}
+
+  /**
+   * Static factory method - creates FileReference from components
+   * Validates using Effect Schema
+   */
+  static create(
+    filename: string,
+    originalFilename: string,
+    filePath: string
+  ): Effect.Effect<FileReferenceVO, ParseError> {
+    return pipe(
+      Schema.decodeUnknown(FileReferenceSchema)({
+        filename,
+        originalFilename,
+        filePath,
+      }),
+      Effect.map((ref) => new FileReferenceVO(
+        ref.filename,
+        ref.originalFilename,
+        ref.filePath
+      ))
+    );
+  }
+
+  /**
+   * For persistence layer - encode to plain object
+   */
+  encode(): FileReference {
+    return {
+      filename: this.filename,
+      originalFilename: this.originalFilename,
+      filePath: this.filePath,
+    };
+  }
+
+  /**
+   * Getters (immutable access)
+   */
+  getFilename(): string {
+    return this.filename;
+  }
+
+  getOriginalFilename(): string {
+    return this.originalFilename;
+  }
+
+  getFilePath(): string {
+    return this.filePath;
+  }
+
+  /**
+   * Value semantics - equality by all fields
+   */
+  equals(other: FileReferenceVO): boolean {
+    return (
+      this.filename === other.filename &&
+      this.originalFilename === other.originalFilename &&
+      this.filePath === other.filePath
+    );
+  }
+}
