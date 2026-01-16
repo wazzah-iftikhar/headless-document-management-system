@@ -1,4 +1,5 @@
 import { Schema } from "@effect/schema";
+import { pipe } from "effect";
 import {
   DocumentIdSchema,
   DateTimeSchema,
