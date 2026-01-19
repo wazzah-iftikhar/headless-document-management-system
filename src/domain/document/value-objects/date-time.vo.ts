@@ -1,6 +1,6 @@
 import { Schema } from "@effect/schema";
 import { Effect, pipe } from "effect";
-import type { ParseError } from "@effect/schema/ParseError";
+import type { ParseError } from "@effect/schema";
 
 /**
  * ISO 8601 DateTime schema
@@ -20,6 +20,7 @@ export const DateTimeSchema = pipe(
     {
       decode: (str) => new Date(str),
       encode: (date) => date.toISOString(),
+      strict: false,
     }
   )
 );
