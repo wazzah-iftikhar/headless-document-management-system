@@ -5,23 +5,17 @@ import type { ParseError } from "@effect/schema";
 /**
  * ISO 8601 DateTime schema
  * Validates and transforms between ISO string and Date object
+ * Uses DateFromString which handles the transformation correctly
  */
 export const DateTimeSchema = pipe(
-  Schema.String,
+  Schema.DateFromString,
   Schema.filter(
-    (str) => {
-      const date = new Date(str);
-      return !isNaN(date.getTime()) && str.includes("T");
+    (date) => {
+      // Must include 'T' in the ISO string to ensure it's a datetime, not just a date
+      const str = date.toISOString();
+      return str.includes("T");
     },
     { message: () => "Invalid ISO 8601 DateTime format" }
-  ),
-  Schema.transform(
-    Schema.Date,
-    {
-      decode: (str) => new Date(str),
-      encode: (date) => date.toISOString(),
-      strict: false,
-    }
   )
 );
 
@@ -48,9 +42,27 @@ export class DateTimeVO {
    * Validates using Effect Schema
    */
   static fromISOString(isoString: string): Effect.Effect<DateTimeVO, ParseError> {
+    // First validate the string format
+    const stringSchema = pipe(
+      Schema.String,
+      Schema.filter(
+        (str) => {
+          if (!str.includes("T")) {
+            return false;
+          }
+          const date = new Date(str);
+          return !isNaN(date.getTime());
+        },
+        { message: () => "Invalid ISO 8601 DateTime format" }
+      )
+    );
+
     return pipe(
-      Schema.decodeUnknown(DateTimeSchema)(isoString),
-      Effect.map((date) => new DateTimeVO(date))
+      Schema.decodeUnknown(stringSchema)(isoString),
+      Effect.map((validatedStr) => {
+        const date = new Date(validatedStr);
+        return new DateTimeVO(date);
+      })
     );
   }
 
