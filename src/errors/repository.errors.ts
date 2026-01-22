@@ -9,7 +9,10 @@ export type RepoError =
   | { _tag: "DbUnknown"; message: string }
   | { _tag: "TokenNotFound"; token: string }
   | { _tag: "TokenExpired"; token: string }
-  | { _tag: "DocumentNotFound"; documentId: number };
+  | { _tag: "DocumentNotFound"; documentId: string } // Updated to UUID string
+  | { _tag: "UserNotFound"; userId: string }
+  | { _tag: "AccessPolicyNotFound"; policyId: string }
+  | { _tag: "DocumentVersionNotFound"; versionId: string };
 
 /**
  * Helper to convert generic Error to RepoError
