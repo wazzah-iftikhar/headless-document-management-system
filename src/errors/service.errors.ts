@@ -5,7 +5,7 @@ import type { RepoError } from "./repository.errors";
  * Business rule violations and expected failures
  */
 export type DomainError =
-  | { _tag: "DocumentNotFound"; documentId: number }
+  | { _tag: "DocumentNotFound"; documentId: string } // Changed to string (UUID)
   | { _tag: "FileNotFound"; filePath: string }
   | { _tag: "InvalidFileType"; message: string }
   | { _tag: "FileTooLarge"; maxSize: number; actualSize: number }

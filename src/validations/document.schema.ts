@@ -17,18 +17,17 @@ export const searchDocumentSchema = Schema.Struct({
   ),
 });
 
-// Helper to transform string to number for ID
-const stringToNumber = pipe(
+// Helper to validate UUID v4 format
+const uuidSchema = pipe(
   Schema.String,
-  Schema.filter((str) => /^\d+$/.test(str), { message: () => "ID must be a valid number" }),
-  Schema.transform(Schema.Number, {
-    decode: (str) => Number(str),
-    encode: (num) => String(num),
-  })
+  Schema.filter(
+    (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str),
+    { message: () => "ID must be a valid UUID v4" }
+  )
 );
 
 export const documentIdParamsSchema = Schema.Struct({
-  id: stringToNumber,
+  id: uuidSchema,
 });
 
 export const downloadTokenParamsSchema = Schema.Struct({
@@ -60,7 +59,7 @@ export const searchQuerySchema = Schema.Struct({
 
 // Response Schemas
 export const documentResponseSchema = Schema.Struct({
-  id: Schema.Number,
+  id: Schema.String, // UUID string
   filename: Schema.String,
   originalFilename: Schema.String,
   fileSize: Schema.Number,
@@ -72,7 +71,7 @@ export const documentResponseSchema = Schema.Struct({
 export const documentListResponseSchema = Schema.Array(documentResponseSchema);
 
 export const uploadDocumentResponseSchema = Schema.Struct({
-  id: Schema.Number,
+  id: Schema.String, // UUID string
   filename: Schema.String,
   originalFilename: Schema.String,
   fileSize: Schema.Number,
@@ -83,7 +82,7 @@ export const uploadDocumentResponseSchema = Schema.Struct({
 export const updateDocumentResponseSchema = documentResponseSchema;
 
 export const deleteDocumentResponseSchema = Schema.Struct({
-  id: Schema.Number,
+  id: Schema.String, // UUID string
   filename: Schema.String,
 });
 
@@ -98,7 +97,7 @@ export const downloadLinkResponseSchema = Schema.Struct({
   token: Schema.String,
   expiresAt: Schema.String,
   expiresInMinutes: Schema.Number,
-  documentId: Schema.Number,
+  documentId: Schema.String, // UUID string
   originalFilename: Schema.String,
 });
 

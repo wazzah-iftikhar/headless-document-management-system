@@ -5,10 +5,17 @@
   "private": true,
   "scripts": {
     "start": "bun src/index.ts",
-    "dev": "bun --hot src/index.ts"
+    "dev": "bun --hot src/index.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@testcontainers/postgresql": "^11.11.0",
+    "@types/bun": "latest",
+    "fast-check": "^4.5.3",
+    "postgres": "^3.4.8"
   },
   "peerDependencies": {
     "typescript": "^5"

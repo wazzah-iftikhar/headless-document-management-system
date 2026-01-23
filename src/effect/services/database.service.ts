@@ -1,11 +1,12 @@
 import { Context, Effect, Layer } from "effect";
 import { drizzle, type BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { Database } from "bun:sqlite";
-import * as schema from "../../models";
+import * as schema from "../../infrastructure/database/schemas";
 
 /**
  * Database Service Tag
  * Represents the database dependency in Effect Context
+ * Uses the new infrastructure database schemas
  */
 export class DatabaseService extends Context.Tag("DatabaseService")<
   DatabaseService,
@@ -14,7 +15,7 @@ export class DatabaseService extends Context.Tag("DatabaseService")<
 
 /**
  * Database Service Implementation
- * Creates and provides the database connection
+ * Creates and provides the database connection with new schemas
  */
 export const DatabaseServiceLive = Layer.succeed(
   DatabaseService,

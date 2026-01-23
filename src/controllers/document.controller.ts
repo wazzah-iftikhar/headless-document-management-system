@@ -4,7 +4,7 @@ import { config } from "../config/app";
 import { HttpUtils } from "../utils/http.utils";
 import { Effect, pipe } from "effect";
 import { AppLayer } from "../effect/layers";
-import type { Document } from "../models";
+import type { Document } from "../services/document.service";
 import type { HttpError } from "../errors/controller.errors";
 import { mapServiceErrorToHttpError, httpErrorToStatus } from "../errors/controller.errors";
 import { validateResponse } from "../middleware/schema-validator";
@@ -103,7 +103,7 @@ export class DocumentController {
    * Refactored to use Effect-based service with functional error handling
    * Maps ServiceError to HttpError at boundary
    */
-  static async getDocumentById(id: number) {
+  static async getDocumentById(id: string) {
     return Effect.runPromise(
       pipe(
         DocumentService.getDocumentById(id),
@@ -136,7 +136,7 @@ export class DocumentController {
    * Refactored to use Effect-based service with functional error handling
    * Maps ServiceError to HttpError at boundary
    */
-  static async updateDocument(id: number, metadataTags?: string[]) {
+  static async updateDocument(id: string, metadataTags?: string[]) {
     return Effect.runPromise(
       pipe(
         DocumentService.updateDocument(id, metadataTags),
@@ -169,7 +169,7 @@ export class DocumentController {
    * Refactored to use Effect-based service with functional error handling
    * Maps ServiceError to HttpError at boundary
    */
-  static async deleteDocument(id: number) {
+  static async deleteDocument(id: string) {
     return Effect.runPromise(
       pipe(
         DocumentService.deleteDocument(id),
@@ -247,7 +247,7 @@ export class DocumentController {
    * Refactored to use Effect-based service with functional error handling
    * Maps ServiceError to HttpError at boundary
    */
-  static async generateDownloadLink(documentId: number) {
+  static async generateDownloadLink(documentId: string) {
     return Effect.runPromise(
       pipe(
         DocumentService.generateDownloadLink(documentId),

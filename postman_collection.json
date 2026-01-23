@@ -1,0 +1,216 @@
+{
+  "info": {
+    "name": "Headless Document Management System",
+    "description": "API collection for testing document management endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "Upload Document",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "metadataTags",
+                  "value": "[\"invoice\", \"2024\"]",
+                  "type": "text",
+                  "description": "Optional: JSON array of tags"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/documents/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", "upload"]
+            }
+          }
+        },
+        {
+          "name": "Get All Documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents"]
+            }
+          }
+        },
+        {
+          "name": "Get Document by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "YOUR_DOCUMENT_ID",
+                  "description": "Document UUID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Document",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"metadataTags\": [\"updated\", \"2024\", \"revised\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/documents/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "YOUR_DOCUMENT_ID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Document",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "YOUR_DOCUMENT_ID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Documents by Tags (GET)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/search?tags=invoice&tags=2024",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", "search"],
+              "query": [
+                {
+                  "key": "tags",
+                  "value": "invoice"
+                },
+                {
+                  "key": "tags",
+                  "value": "2024"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Documents by Tags (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tags\": [\"invoice\", \"2024\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/documents/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", "search"]
+            }
+          }
+        },
+        {
+          "name": "Generate Download Link",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/:id/download-link",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", ":id", "download-link"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "YOUR_DOCUMENT_ID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Download Document by Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/download/:token",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", "download", ":token"],
+              "variable": [
+                {
+                  "key": "token",
+                  "value": "YOUR_DOWNLOAD_TOKEN"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

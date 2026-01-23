@@ -1,194 +1,18 @@
 import { Effect, pipe } from "effect";
-import { documents, downloadTokens } from "../models";
-import { eq, and, gt } from "drizzle-orm";
-import type { Document, NewDocument } from "../models";
+import { downloadTokens } from "../models";
+import { eq } from "drizzle-orm";
 import type { DownloadToken, NewDownloadToken } from "../models/download-token.model";
-import { ok, err, type Result } from "../utils/result";
-import { safeParseJSON } from "../utils/safe-parse";
 import { DatabaseService } from "../effect/services/database.service";
-import { db } from "../config/database"; // Keep for non-migrated methods
 import type { RepoError } from "../errors/repository.errors";
 import { toRepoError } from "../errors/repository.errors";
 
-export class DocumentRepository {
-
-  /**
-   * Create a new document
-   * Refactored to use Effect with RepoError type
-   */
-  static create(data: NewDocument): Effect.Effect<Document, RepoError, DatabaseService> {
-    return pipe(
-      DatabaseService,
-      Effect.flatMap((db) =>
-        Effect.tryPromise({
-          try: () =>
-            db
-              .insert(documents)
-              .values(data)
-              .returning()
-              .then(([document]) => {
-                if (!document) {
-                  throw new Error("Failed to create document");
-                }
-                return document;
-              }),
-          catch: (error) => toRepoError(error),
-        })
-      )
-    );
-  }
-
-  /**
-   * Find all documents
-   * Refactored to use Effect with RepoError type
-   */
-  static findAll(): Effect.Effect<Document[], RepoError, DatabaseService> {
-    return pipe(
-      DatabaseService,
-      Effect.flatMap((db) =>
-        Effect.tryPromise({
-          try: () => db.select().from(documents),
-          catch: (error) => toRepoError(error),
-        })
-      )
-    );
-  }
-
-  /**
-   * Find document by ID
-   * Returns null if not found (modeled as data, not error per article)
-   */
-  /**
-   * Find document by ID
-   * Fails with RepoError if document not found
-   */
-  static findById(id: number): Effect.Effect<Document, RepoError, DatabaseService> {
-    return pipe(
-      DatabaseService,
-      Effect.flatMap((db) =>
-        pipe(
-          Effect.tryPromise({
-            try: () =>
-              db
-                .select()
-                .from(documents)
-                .where(eq(documents.id, id))
-                .limit(1),
-            catch: (error) => toRepoError(error),
-          }),
-          Effect.flatMap((rows) => {
-            if (!rows[0]) {
-              return Effect.fail({ _tag: "DocumentNotFound", documentId: id } as RepoError);
-            }
-            return Effect.succeed(rows[0]);
-          })
-        )
-      )
-    );
-  }
-
-  /**
-   * Update document by ID
-   * Fails with RepoError if document not found
-   */
-  static update(id: number, data: Partial<Document>): Effect.Effect<Document, RepoError, DatabaseService> {
-    return pipe(
-      DatabaseService,
-      Effect.flatMap((db) =>
-        pipe(
-          Effect.tryPromise({
-            try: () =>
-              db
-                .update(documents)
-                .set({ ...data, updatedAt: new Date().toISOString() })
-                .where(eq(documents.id, id))
-                .returning(),
-            catch: (error) => toRepoError(error),
-          }),
-          Effect.flatMap((rows) => {
-            if (!rows[0]) {
-              return Effect.fail({ _tag: "DocumentNotFound", documentId: id } as RepoError);
-            }
-            return Effect.succeed(rows[0]);
-          })
-        )
-      )
-    );
-  }
-
-  /**
-   * Delete document by ID
-   * Fails with RepoError if document not found
-   */
-  static delete(id: number): Effect.Effect<Document, RepoError, DatabaseService> {
-    return pipe(
-      DatabaseService,
-      Effect.flatMap((db) =>
-        pipe(
-          Effect.tryPromise({
-            try: () =>
-              db
-                .select()
-                .from(documents)
-                .where(eq(documents.id, id))
-                .limit(1),
-            catch: (error) => toRepoError(error),
-          }),
-          Effect.flatMap((existingDoc) => {
-            const doc = existingDoc[0];
-            if (!doc) {
-              return Effect.fail({ _tag: "DocumentNotFound", documentId: id } as RepoError);
-            }
-            return pipe(
-              Effect.tryPromise({
-                try: () => db.delete(documents).where(eq(documents.id, id)),
-                catch: (error) => toRepoError(error),
-              }),
-              Effect.map(() => doc)
-            );
-          })
-        )
-      )
-    );
-  }
-
-  /**
-   * Find documents by metadata tags
-   * Refactored to use Effect with RepoError type
-   */
-  static findByTags(searchTags: string[]): Effect.Effect<Document[], RepoError, DatabaseService> {
-    return pipe(
-      DatabaseService,
-      Effect.flatMap((db) =>
-        pipe(
-          Effect.tryPromise({
-            try: () => db.select().from(documents),
-            catch: (error) => toRepoError(error),
-          }),
-          Effect.map((rows) => {
-            // Filter documents by tags
-            const filtered = rows.filter((doc) => {
-              if (!doc.metadataTags) return false;
-              const parsed = safeParseJSON<string[]>(doc.metadataTags);
-              if (!parsed.ok) return false;
-              const docTags = parsed.value;
-              return searchTags.some((searchTag) =>
-                docTags.some(
-                  (docTag) =>
-                    docTag.toLowerCase() === searchTag.toLowerCase() ||
-                    docTag.toLowerCase().includes(searchTag.toLowerCase())
-                )
-              );
-            });
-            return filtered;
-          })
-        )
-      )
-    );
-  }
-
-}
-
+/**
+ * Download Token Repository
+ * 
+ * Handles download token operations.
+ * Note: This still uses the old model structure but with UUID document_id support.
+ * TODO: Migrate to new infrastructure architecture when download tokens are refactored.
+ */
 export class DownloadTokenRepository {
 
   /**
@@ -276,4 +100,3 @@ export class DownloadTokenRepository {
   }
 
 }
-
