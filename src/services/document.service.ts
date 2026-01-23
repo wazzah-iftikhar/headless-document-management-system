@@ -1,9 +1,7 @@
-import { DocumentRepository, DownloadTokenRepository } from "../repositories";
+import { DocumentRepositoryImpl } from "../infrastructure/repositories/implementations/document.repository.impl";
+import { DownloadTokenRepository } from "../repositories"; // Keep old for now
 import { config } from "../config/app";
 import { generateDownloadToken } from "../utils/token";
-import type { Document } from "../models";
-import type { DownloadToken } from "../models/download-token.model";
-import { ok, err, type Result } from "../utils/result";
 import { FileUtils } from "../utils/file.utils";
 import { ValidationUtils } from "../utils/validation.utils";
 import { Effect, pipe } from "effect";
@@ -12,14 +10,52 @@ import { DatabaseService } from "../effect/services/database.service";
 import { ConfigService } from "../effect/services/config.service";
 import type { ServiceError } from "../errors/service.errors";
 import { mapRepoErrorToServiceError } from "../errors/service.errors";
+import { domainToPersistence, persistenceToDomain } from "../infrastructure/mappers/document.mapper";
+import { DocumentIdVO } from "../domain/document/value-objects/document-id.vo";
+import { FileReferenceVO } from "../domain/document/value-objects/file-reference.vo";
+import { MetadataTagsVO } from "../domain/document/value-objects/metadata-tags.vo";
+import { DateTimeVO } from "../domain/document/value-objects/date-time.vo";
+import type { DocumentDomain } from "../domain/document/document.entity.schema";
+import type { DocumentPersistence } from "../domain/document/document.entity.schema";
 
+// Response type compatible with old Document type for backward compatibility
+export type Document = {
+  id: string; // UUID string
+  filename: string;
+  originalFilename: string;
+  filePath: string;
+  fileSize: number;
+  checksum?: string;
+  metadataTags: string[]; // Parsed from JSON
+  createdAt: string;
+  updatedAt: string;
+};
+
+const documentRepo = new DocumentRepositoryImpl();
+
+/**
+ * Map DocumentDomain to response Document type
+ * DocumentDomain has plain values from schema (not value objects)
+ */
+function domainToResponse(domain: DocumentDomain): Document {
+  return {
+    id: domain.id, // Already a UUID string
+    filename: domain.fileReference.filename,
+    originalFilename: domain.fileReference.originalFilename,
+    filePath: domain.fileReference.filePath,
+    fileSize: domain.fileSize,
+    checksum: domain.checksum, // Already a string or undefined
+    metadataTags: [...domain.metadataTags], // Copy array to make it mutable
+    createdAt: domain.createdAt.toISOString(), // Date to ISO string
+    updatedAt: domain.updatedAt.toISOString(), // Date to ISO string
+  };
+}
 
 export class DocumentService {
   
   /**
    * Create a new document
-   * Refactored to use pipe and flatMap with Effect-based FileUtils functions
-   * Maps RepoError to ServiceError at boundary
+   * Uses new repository and domain entities
    */
   static createDocument(
     file: File,
@@ -28,7 +64,6 @@ export class DocumentService {
     
     return pipe(
       FileUtils.validateFile(file),
-      // Map FileUtils errors to domain errors
       Effect.mapError((error: Error) => {
         const message = error.message.toLowerCase();
         if (message.includes("only pdf") || message.includes("pdf")) {
@@ -55,15 +90,18 @@ export class DocumentService {
                   Effect.mapError(() => ({ _tag: "ServiceUnavailable", operation: "createDocument" } as ServiceError)),
                   Effect.flatMap(() =>
                     pipe(
-                      DocumentRepository.create({
+                      // Create persistence data
+                      documentRepo.create({
                         filename: pathData.filename,
                         originalFilename: validatedFile.name,
                         filePath: pathData.filePath,
                         fileSize: validatedFile.size,
                         metadataTags: JSON.stringify(metadataTags || []),
                       }),
-                      // Map RepoError to ServiceError at boundary
-                      Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "createDocument"))
+                      Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "createDocument")),
+                      // Convert persistence to domain, then to response
+                      Effect.flatMap((persistence) => persistenceToDomain(persistence)),
+                      Effect.map((domain) => domainToResponse(domain))
                     )
                   )
                 )
@@ -75,244 +113,92 @@ export class DocumentService {
     );
   }
 
-
   /**
    * Get all documents
-   * Refactored to use pipe and map with Effect-based repository functions
-   * Maps RepoError to ServiceError at boundary
+   * Uses new repository with pagination support
    */
   static getAllDocuments(): Effect.Effect<Document[], ServiceError, DatabaseService> {
     return pipe(
-      DocumentRepository.findAll(),
-      // Map RepoError to ServiceError at boundary
+      documentRepo.findAll({ page: 1, limit: 1000 }), // Get all (high limit)
       Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "getAllDocuments")),
-      Effect.map((documents) => {
-        // Format documents (parse metadataTags from JSON)
-        const formattedDocuments = documents.map((doc) => ({
-          ...doc,
-          metadataTags: doc.metadataTags ? JSON.parse(doc.metadataTags) : [],
-        }));
-        return formattedDocuments;
-      })
+      Effect.flatMap((paginated) =>
+        Effect.all(
+          paginated.data.map((persistence) => persistenceToDomain(persistence))
+        )
+      ),
+      Effect.map((domains) => domains.map(domainToResponse))
     );
   }
 
   /**
-   * Get document by ID
-   * Refactored to use pipe and map with Effect-based repository functions
-   * Maps RepoError to ServiceError at boundary
+   * Get document by ID (UUID string)
+   * Uses new repository
    */
-  static getDocumentById(id: number): Effect.Effect<Document, ServiceError, DatabaseService> {
+  static getDocumentById(id: string): Effect.Effect<Document, ServiceError, DatabaseService> {
     return pipe(
-      DocumentRepository.findById(id),
-      // Map RepoError to ServiceError at boundary (handles DocumentNotFound, DB errors)
-      Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "getDocumentById")),
-      Effect.map((document) => {
-        // Format document (parse metadataTags from JSON)
-        const formattedDocument = {
-          ...document,
-          metadataTags: document.metadataTags
-            ? JSON.parse(document.metadataTags)
-            : [],
-        };
-        return formattedDocument;
-      })
+      // Validate UUID format
+      DocumentIdVO.fromString(id),
+      Effect.mapError(() => ({ _tag: "DocumentNotFound", documentId: id } as ServiceError)),
+      Effect.flatMap(() =>
+        pipe(
+          documentRepo.findById(id),
+          Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "getDocumentById")),
+          Effect.flatMap((persistence) => persistenceToDomain(persistence)),
+          Effect.map((domain) => domainToResponse(domain))
+        )
+      )
     );
   }
 
   /**
-   * Update document by ID
-   * Refactored to use pipe and map with Effect-based repository functions
-   * Maps RepoError to ServiceError at boundary
+   * Update document by ID (UUID string)
+   * Uses new repository
    */
   static updateDocument(
-    id: number,
+    id: string,
     metadataTags?: string[]
   ): Effect.Effect<Document, ServiceError, DatabaseService> {
-    // Build update data - only include metadataTags if provided
-    const updateData: { metadataTags?: string } = {};
-    if (metadataTags !== undefined) {
-      updateData.metadataTags = JSON.stringify(metadataTags);
-    }
-
     return pipe(
-      DocumentRepository.update(id, updateData),
-      // Map RepoError to ServiceError at boundary (handles DocumentNotFound, DB errors)
-      Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "updateDocument")),
-      Effect.map((document) => {
-        // Format document (parse metadataTags from JSON)
-        const formattedDocument = {
-          ...document,
-          metadataTags: document.metadataTags
-            ? JSON.parse(document.metadataTags)
-            : [],
-        };
-        return formattedDocument;
-      })
-    );
-  }
-
-
-  /**
-   * Delete document by ID
-   * Refactored to use pipe and flatMap with Effect-based repository and file utils functions
-   * Maps RepoError to ServiceError at boundary
-   */
-  static deleteDocument(id: number): Effect.Effect<Document, ServiceError, DatabaseService | ConfigService> {
-    return pipe(
-      DocumentRepository.findById(id),
-      // Map RepoError to ServiceError at boundary (handles DocumentNotFound, DB errors)
-      Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "deleteDocument")),
-      Effect.flatMap((document) =>
+      DocumentIdVO.fromString(id),
+      Effect.mapError(() => ({ _tag: "DocumentNotFound", documentId: id } as ServiceError)),
+      Effect.flatMap(() =>
         pipe(
-          // Delete file from disk (non-critical - log warning if fails but continue)
-          FileUtils.deleteFileFromDisk(document.filePath),
-          Effect.catchAll((error) => {
-            console.warn("File deletion warning:", error.message);
-            return Effect.succeed(undefined);
+          documentRepo.update(id, {
+            metadataTags: metadataTags !== undefined ? JSON.stringify(metadataTags) : undefined,
           }),
-          Effect.flatMap(() =>
+          Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "updateDocument")),
+          Effect.flatMap((persistence) => persistenceToDomain(persistence)),
+          Effect.map((domain) => domainToResponse(domain))
+        )
+      )
+    );
+  }
+
+  /**
+   * Delete document by ID (UUID string)
+   * Uses new repository
+   */
+  static deleteDocument(id: string): Effect.Effect<Document, ServiceError, DatabaseService | ConfigService> {
+    return pipe(
+      DocumentIdVO.fromString(id),
+      Effect.mapError(() => ({ _tag: "DocumentNotFound", documentId: id } as ServiceError)),
+      Effect.flatMap(() =>
+        pipe(
+          documentRepo.findById(id),
+          Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "deleteDocument")),
+          Effect.flatMap((persistence) => persistenceToDomain(persistence)),
+          Effect.flatMap((domain) =>
             pipe(
-              DocumentRepository.delete(id),
-              // Map RepoError to ServiceError at boundary
-              Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "deleteDocument")),
-              Effect.map(() => document)
-            )
-          )
-        )
-      )
-    );
-  }
-
-
-  /**
-   * Search documents by metadata tags
-   * Refactored to use pipe and flatMap with Effect-based repository functions
-   * Maps RepoError to ServiceError at boundary
-   */
-  static searchDocumentsByTags(searchTags: string[]): Effect.Effect<Document[], ServiceError, DatabaseService> {
-    return pipe(
-      ValidationUtils.validateSearchTags(searchTags),
-      // Map validation errors to domain errors
-      Effect.mapError((error: Error) => {
-        return { _tag: "InvalidSearchTags", message: error.message } as ServiceError;
-      }),
-      Effect.flatMap((validatedTags) =>
-        pipe(
-          DocumentRepository.findByTags(validatedTags),
-          // Map RepoError to ServiceError at boundary
-          Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "searchDocumentsByTags")),
-          Effect.map((documents) =>
-            // Format documents (parse metadataTags from JSON)
-            documents.map((doc) => ({
-              ...doc,
-              metadataTags: doc.metadataTags ? JSON.parse(doc.metadataTags) : [],
-            }))
-          )
-        )
-      )
-    );
-  }
-
-
-  /**
-   * Generate download link for a document
-   * Refactored to use pipe and flatMap with Effect-based repository functions
-   * Maps RepoError to ServiceError at boundary
-   */
-  static generateDownloadLink(documentId: number): Effect.Effect<{
-    token: string;
-    expiresAt: string;
-    downloadUrl: string;
-    document: Document;
-  }, ServiceError, DatabaseService | ConfigService> {
-    return pipe(
-      DocumentRepository.findById(documentId),
-      // Map RepoError to ServiceError at boundary (handles DocumentNotFound, DB errors)
-      Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "generateDownloadLink")),
-      Effect.flatMap((document) =>
-        pipe(
-          Effect.map(ConfigService, (configService) => configService.downloadLinkExpiryMinutes),
-          Effect.flatMap((expiryMinutes) => {
-            // Generate secure token
-            const token = generateDownloadToken();
-
-            // Calculate expiration time
-            const expiresAt = new Date();
-            expiresAt.setMinutes(expiresAt.getMinutes() + expiryMinutes);
-
-            // Save token to database
-            return pipe(
-              DownloadTokenRepository.create({
-                token,
-                documentId,
-                expiresAt: expiresAt.toISOString(),
-              }),
-              // Map RepoError to ServiceError at boundary
-              Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "generateDownloadLink")),
-              Effect.map((downloadToken) => {
-                const downloadUrl = `/documents/download/${token}`;
-                return {
-                  token,
-                  expiresAt: downloadToken.expiresAt,
-                  downloadUrl,
-                  document,
-                };
-              })
-            );
-          })
-        )
-      )
-    );
-  }
-
-
-  /**
-   * Download document by token
-   * Refactored to use pipe and flatMap with Effect-based repository and file utils functions
-   * Maps RepoError to ServiceError at boundary
-   */
-  static downloadDocumentByToken(token: string): Effect.Effect<{
-    document: Document;
-    filePath: string;
-  }, ServiceError, DatabaseService | ConfigService> {
-    return pipe(
-      DownloadTokenRepository.findValidToken(token),
-      // Map RepoError to ServiceError at boundary (handles TokenNotFound, TokenExpired, DB errors)
-      Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "downloadDocumentByToken")),
-      // Check if token is already used (domain validation)
-      Effect.flatMap((downloadToken) => {
-        if (downloadToken.usedAt) {
-          return Effect.fail({ _tag: "DownloadTokenAlreadyUsed", token } as ServiceError);
-        }
-        return Effect.succeed(downloadToken);
-      }),
-      Effect.flatMap((downloadToken) =>
-        pipe(
-          DocumentRepository.findById(downloadToken.documentId),
-          // Map RepoError to ServiceError at boundary (handles DocumentNotFound, DB errors)
-          Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "downloadDocumentByToken")),
-          Effect.flatMap((document) =>
-            pipe(
-              FileUtils.checkFileExists(document.filePath),
-              // Map file errors to domain errors
-              Effect.mapError((error: Error) => {
-                return { _tag: "FileNotFound", filePath: document.filePath } as ServiceError;
+              FileUtils.deleteFileFromDisk(domain.fileReference.filePath),
+              Effect.catchAll((error) => {
+                console.warn("File deletion warning:", error.message);
+                return Effect.succeed(undefined);
               }),
               Effect.flatMap(() =>
                 pipe(
-                  // Mark token as used (non-critical - log warning if fails but continue)
-                  DownloadTokenRepository.markAsUsed(downloadToken.id),
-                  // Map RepoError to ServiceError at boundary
-                  Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "downloadDocumentByToken")),
-                  Effect.catchAll((error) => {
-                    console.warn("Failed to mark token as used:", error);
-                    return Effect.succeed(undefined);
-                  }),
-                  Effect.map(() => ({
-                    document,
-                    filePath: document.filePath,
-                  }))
+                  documentRepo.delete(id),
+                  Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "deleteDocument")),
+                  Effect.map(() => domainToResponse(domain))
                 )
               )
             )
@@ -322,5 +208,128 @@ export class DocumentService {
     );
   }
 
-}
+  /**
+   * Search documents by metadata tags
+   * Uses new repository
+   */
+  static searchDocumentsByTags(searchTags: string[]): Effect.Effect<Document[], ServiceError, DatabaseService> {
+    return pipe(
+      ValidationUtils.validateSearchTags(searchTags),
+      Effect.mapError((error: Error) => {
+        return { _tag: "InvalidSearchTags", message: error.message } as ServiceError;
+      }),
+      Effect.flatMap((validatedTags) =>
+        pipe(
+          documentRepo.findByTags(validatedTags, { page: 1, limit: 1000 }),
+          Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "searchDocumentsByTags")),
+          Effect.flatMap((paginated) =>
+            Effect.all(
+              paginated.data.map((persistence) => persistenceToDomain(persistence))
+            )
+          ),
+          Effect.map((domains) => domains.map(domainToResponse))
+        )
+      )
+    );
+  }
 
+  /**
+   * Generate download link for a document (UUID string)
+   * Uses new repository for document lookup, old repository for tokens
+   */
+  static generateDownloadLink(documentId: string): Effect.Effect<{
+    token: string;
+    expiresAt: string;
+    downloadUrl: string;
+    document: Document;
+  }, ServiceError, DatabaseService | ConfigService> {
+    return pipe(
+      DocumentIdVO.fromString(documentId),
+      Effect.mapError(() => ({ _tag: "DocumentNotFound", documentId } as ServiceError)),
+      Effect.flatMap(() =>
+        pipe(
+          documentRepo.findById(documentId),
+          Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "generateDownloadLink")),
+          Effect.flatMap((persistence) => persistenceToDomain(persistence)),
+          Effect.flatMap((domain) =>
+            pipe(
+              Effect.map(ConfigService, (configService) => configService.downloadLinkExpiryMinutes),
+              Effect.flatMap((expiryMinutes) => {
+                const token = generateDownloadToken();
+                const expiresAt = new Date();
+                expiresAt.setMinutes(expiresAt.getMinutes() + expiryMinutes);
+
+                // Use DownloadTokenRepository (now supports UUID strings)
+                return pipe(
+                  DownloadTokenRepository.create({
+                    token,
+                    documentId, // UUID string
+                    expiresAt: expiresAt.toISOString(),
+                  }),
+                  Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "generateDownloadLink")),
+                  Effect.map((downloadToken) => ({
+                    token,
+                    expiresAt: downloadToken.expiresAt,
+                    downloadUrl: `/documents/download/${token}`,
+                    document: domainToResponse(domain),
+                  }))
+                );
+              })
+            )
+          )
+        )
+      )
+    );
+  }
+
+  /**
+   * Download document by token
+   * Uses old repository for tokens, new repository for documents
+   */
+  static downloadDocumentByToken(token: string): Effect.Effect<{
+    document: Document;
+    filePath: string;
+  }, ServiceError, DatabaseService | ConfigService> {
+    return pipe(
+      DownloadTokenRepository.findValidToken(token),
+      Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "downloadDocumentByToken")),
+      Effect.flatMap((downloadToken) => {
+        if (downloadToken.usedAt) {
+          return Effect.fail({ _tag: "DownloadTokenAlreadyUsed", token } as ServiceError);
+        }
+        return Effect.succeed(downloadToken);
+      }),
+      Effect.flatMap((downloadToken) => {
+        // documentId is now a UUID string
+        const documentId = downloadToken.documentId;
+        return pipe(
+          documentRepo.findById(documentId),
+          Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "downloadDocumentByToken")),
+          Effect.flatMap((persistence) => persistenceToDomain(persistence)),
+          Effect.flatMap((domain) =>
+            pipe(
+              FileUtils.checkFileExists(domain.fileReference.filePath),
+              Effect.mapError((error: Error) => {
+                return { _tag: "FileNotFound", filePath: domain.fileReference.filePath } as ServiceError;
+              }),
+              Effect.flatMap(() =>
+                pipe(
+                  DownloadTokenRepository.markAsUsed(downloadToken.id),
+                  Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "downloadDocumentByToken")),
+                  Effect.catchAll((error) => {
+                    console.warn("Failed to mark token as used:", error);
+                    return Effect.succeed(undefined);
+                  }),
+                  Effect.map(() => ({
+                    document: domainToResponse(domain),
+                    filePath: domain.fileReference.filePath,
+                  }))
+                )
+              )
+            )
+          )
+        );
+      })
+    );
+  }
+}
