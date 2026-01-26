@@ -32,6 +32,9 @@ import { DatabaseService } from "../../effect/services/database.service";
  * - published -> archived (allowed)
  * - archived -> draft (not allowed in this implementation)
  * - Any -> same status (idempotent, allowed)
+ * 
+ * Transaction Boundary:
+ * Single repository operation (update document). Atomic by default.
  */
 export class PublishDocumentUseCase {
   private documentRepo = new DocumentRepositoryImpl();
@@ -174,6 +177,9 @@ export class PublishDocumentUseCase {
  * 1. Validate command input
  * 2. Update document metadata
  * 3. Return updated document
+ * 
+ * Transaction Boundary:
+ * Single repository operation (update document). Atomic by default.
  */
 export class UpdateDocumentMetadataUseCase {
   private documentRepo = new DocumentRepositoryImpl();

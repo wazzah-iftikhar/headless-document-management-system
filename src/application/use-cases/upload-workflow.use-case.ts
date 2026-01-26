@@ -180,7 +180,13 @@ export class InitiateUploadUseCase {
  * 5. Update document with file information
  * 6. Delete upload token
  * 
+ * Transaction Boundary:
+ * This use case performs multiple repository operations (create version + update document).
+ * In production, these should be wrapped in a database transaction to ensure atomicity.
+ * For training purposes, this is simplified - each operation is independent.
+ * 
  * Idempotency:
+ * - Checksum-based duplicate detection prevents duplicate uploads
  * - If document already has the same checksum, returns existing version
  * - Prevents duplicate file storage and version creation
  */

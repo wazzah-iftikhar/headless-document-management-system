@@ -34,6 +34,10 @@ import { randomUUID } from "crypto";
  * 
  * Note: For simplicity, this always creates a new policy.
  * In a real system, you'd check if a policy exists and update it.
+ * 
+ * Transaction Boundary:
+ * Two repository operations (verify document + create policy).
+ * In production, these should be in a transaction. Simplified for training.
  */
 export class ManageAccessPolicyUseCase {
   private documentRepo = new DocumentRepositoryImpl();
@@ -116,6 +120,10 @@ export class ManageAccessPolicyUseCase {
  *   3. Role policies
  *   4. Workspace policies
  *   5. Default deny
+ * 
+ * Transaction Boundary:
+ * Read-only operations (fetch user, document, policies).
+ * No write operations, so no transaction needed.
  */
 export class CheckPermissionUseCase {
   private documentRepo = new DocumentRepositoryImpl();

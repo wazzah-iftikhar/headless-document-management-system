@@ -27,6 +27,9 @@ import { DatabaseService } from "../../effect/services/database.service";
  * 3. Convert persistence to domain entity
  * 4. Map domain entity to result DTO
  * 5. Return document result
+ * 
+ * Transaction Boundary:
+ * Read-only operation (fetch document). No transaction needed.
  */
 export class GetDocumentUseCase {
   private documentRepo = new DocumentRepositoryImpl();
@@ -99,6 +102,9 @@ export class GetDocumentUseCase {
  * 4. Convert all persistence entities to domain entities
  * 5. Map domain entities to result DTOs
  * 6. Return paginated document results
+ * 
+ * Transaction Boundary:
+ * Read-only operation (fetch documents). No transaction needed.
  */
 export class ListDocumentsUseCase {
   private documentRepo = new DocumentRepositoryImpl();

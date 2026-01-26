@@ -28,6 +28,9 @@ import { randomUUID } from "crypto";
  * 3. Create document in repository with placeholder file path
  * 4. Convert persistence to domain entity
  * 5. Return document result DTO
+ * 
+ * Transaction Boundary:
+ * Single repository operation (create document). Atomic by default.
  */
 export class CreateDocumentUseCase {
   private documentRepo = new DocumentRepositoryImpl();
