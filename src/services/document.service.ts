@@ -55,7 +55,8 @@ export class DocumentService {
   
   /**
    * Create a new document
-   * Uses new repository and domain entities
+   * Refactored to use pipe and flatMap with Effect-based FileUtils functions
+   * Maps RepoError to ServiceError at boundary
    */
   static createDocument(
     file: File,
@@ -64,6 +65,7 @@ export class DocumentService {
     
     return pipe(
       FileUtils.validateFile(file),
+      // Map FileUtils errors to domain errors
       Effect.mapError((error: Error) => {
         const message = error.message.toLowerCase();
         if (message.includes("only pdf") || message.includes("pdf")) {
@@ -314,7 +316,9 @@ export class DocumentService {
               }),
               Effect.flatMap(() =>
                 pipe(
+                  // Mark token as used (non-critical - log warning if fails but continue)
                   DownloadTokenRepository.markAsUsed(downloadToken.id),
+                  // Map RepoError to ServiceError at boundary
                   Effect.mapError((repoError) => mapRepoErrorToServiceError(repoError, "downloadDocumentByToken")),
                   Effect.catchAll((error) => {
                     console.warn("Failed to mark token as used:", error);
@@ -333,3 +337,4 @@ export class DocumentService {
     );
   }
 }
+

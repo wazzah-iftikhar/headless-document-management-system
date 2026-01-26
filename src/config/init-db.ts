@@ -10,15 +10,19 @@ import { sql } from "drizzle-orm";
  */
 export async function initDatabase() {
   try {
-    const sqlite = new Database("database.sqlite");
-    const db = drizzle(sqlite, { schema });
-
-    // Enable foreign keys
-    await db.run(sql`PRAGMA foreign_keys = ON`);
-
-    // Load and run migrations
-    const migrations = await loadMigrations("./drizzle");
-    await migrateUp(db, migrations);
+    // Create documents table
+    await db.run(sql`
+      CREATE TABLE IF NOT EXISTS documents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        filename TEXT NOT NULL,
+        original_filename TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        file_size INTEGER NOT NULL,
+        metadata_tags TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
     // Also create download_tokens table (updated to use TEXT document_id for UUIDs)
     await db.run(sql`

@@ -17,8 +17,8 @@ export const searchDocumentSchema = Schema.Struct({
   ),
 });
 
-// Helper to validate UUID v4 format
-const uuidSchema = pipe(
+// Helper to transform string to number for ID
+const stringToNumber = pipe(
   Schema.String,
   Schema.filter(
     (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str),
