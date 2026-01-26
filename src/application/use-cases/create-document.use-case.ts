@@ -47,7 +47,7 @@ export class CreateDocumentUseCase {
       Effect.mapError((error) => ({
         _tag: "ValidationError",
         field: "command",
-        message: Schema.formatErrors(error.errors).join(", "),
+        message: String(error),
       } as UseCaseError)),
       // Step 2: Generate document ID and create document
       Effect.flatMap((validatedCommand) =>
