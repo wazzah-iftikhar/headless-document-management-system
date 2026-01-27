@@ -5,4 +5,3 @@ import { documentRoutes } from "./document.routes";
 export const setupRoutes = (app: Elysia) => {
   return app.use(documentRoutes);
 };
-

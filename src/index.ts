@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { setupRoutes } from "./routes";
+import { setupRoutes } from "./presentation/routes";
 import { config } from "./config/app";
 import { initDatabase } from "./config/init-db";
 

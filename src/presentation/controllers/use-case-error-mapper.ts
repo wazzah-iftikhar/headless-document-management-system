@@ -1,4 +1,4 @@
-import type { UseCaseError } from "../application/errors/use-case.errors";
+import type { UseCaseError } from "../../application/errors/use-case.errors";
 import type { HttpError } from "../errors/controller.errors";
 
 /**

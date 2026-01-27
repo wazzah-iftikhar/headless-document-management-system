@@ -1,5 +1,5 @@
 import { Effect, pipe } from "effect";
-import { AppLayer } from "../effect/layers";
+import { AppLayer } from "../../effect/layers";
 import { successResponse, errorResponse } from "../utils/response";
 import type { HttpError } from "../errors/controller.errors";
 import { mapUseCaseErrorToHttpError } from "./use-case-error-mapper";
@@ -16,20 +16,20 @@ import {
 } from "../validations/document.schema";
 
 // Import new use cases
-import { GetDocumentUseCase } from "../application/use-cases/document-queries.use-case";
-import { ListDocumentsUseCase } from "../application/use-cases/document-queries.use-case";
-import { UpdateDocumentMetadataUseCase } from "../application/use-cases/document-operations.use-case";
+import { GetDocumentUseCase } from "../../application/use-cases/document-queries.use-case";
+import { ListDocumentsUseCase } from "../../application/use-cases/document-queries.use-case";
+import { UpdateDocumentMetadataUseCase } from "../../application/use-cases/document-operations.use-case";
 
 // Import DTOs
 import type {
   GetDocumentQuery,
   ListDocumentsQuery,
   UpdateDocumentMetadataCommand,
-} from "../application/dtos/document.dtos";
+} from "../../application/dtos/document.dtos";
 
 // Import old service for backward compatibility (upload, delete, download)
-import { DocumentService } from "../services/document.service";
-import { config } from "../config/app";
+import { DocumentService } from "../../services/document.service";
+import { config } from "../../config/app";
 
 /**
  * Document Controller (Updated to use new use cases)

@@ -1,4 +1,4 @@
-import type { ServiceError } from "./service.errors";
+import type { ServiceError } from "../../errors/service.errors";
 
 /**
  * Controller/HTTP Layer Errors

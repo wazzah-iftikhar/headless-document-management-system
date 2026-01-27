@@ -1,4 +1,4 @@
 export * from "./repository.errors";
 export * from "./service.errors";
-export * from "./controller.errors";
+export * from "../presentation/errors/controller.errors";
 
