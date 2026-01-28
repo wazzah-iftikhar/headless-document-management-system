@@ -1,25 +1,20 @@
 import { Effect, pipe } from "effect";
-import { downloadTokens } from "../models";
 import { eq } from "drizzle-orm";
-import type { DownloadToken, NewDownloadToken } from "../models/download-token.model";
-import { DatabaseService } from "../effect/services/database.service";
-import type { RepoError } from "../errors/repository.errors";
-import { toRepoError } from "../errors/repository.errors";
+import type { IDownloadTokenRepository, DownloadToken, NewDownloadToken } from "../../../application/ports/download-token.repository.port";
+import { DatabaseService } from "../../../effect/services/database.service";
+import type { RepoError } from "../../../errors/repository.errors";
+import { toRepoError } from "../../../errors/repository.errors";
+import { downloadTokens } from "../../../models/download-token.model";
 
 /**
- * Download Token Repository
+ * Download Token Repository Implementation (Adapter)
  * 
- * Handles download token operations.
- * Note: This still uses the old model structure but with UUID document_id support.
- * TODO: Migrate to new infrastructure architecture when download tokens are refactored.
+ * Implements the IDownloadTokenRepository port.
+ * This is an ADAPTER in hexagonal architecture - the infrastructure layer
+ * provides concrete implementations of application ports.
  */
-export class DownloadTokenRepository {
-
-  /**
-   * Create a new download token
-   * Refactored to use Effect with RepoError type
-   */
-  static create(data: NewDownloadToken): Effect.Effect<DownloadToken, RepoError, DatabaseService> {
+export class DownloadTokenRepositoryImpl implements IDownloadTokenRepository {
+  create(data: NewDownloadToken): Effect.Effect<DownloadToken, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) =>
@@ -41,11 +36,7 @@ export class DownloadTokenRepository {
     );
   }
 
-  /**
-   * Find a valid (non-expired and unused) download token
-   * Fails with RepoError if token not found or expired
-   */
-  static findValidToken(token: string): Effect.Effect<DownloadToken, RepoError, DatabaseService> {
+  findValidToken(token: string): Effect.Effect<DownloadToken, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) => {
@@ -76,11 +67,7 @@ export class DownloadTokenRepository {
     );
   }
 
-  /**
-   * Mark a download token as used
-   * Refactored to use Effect with RepoError type
-   */
-  static markAsUsed(id: number): Effect.Effect<void, RepoError, DatabaseService> {
+  markAsUsed(id: number): Effect.Effect<void, RepoError, DatabaseService> {
     return pipe(
       DatabaseService,
       Effect.flatMap((db) =>
@@ -98,6 +85,4 @@ export class DownloadTokenRepository {
       )
     );
   }
-
 }
-

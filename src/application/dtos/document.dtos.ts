@@ -165,6 +165,21 @@ export const UpdateDocumentMetadataCommandSchema = Schema.Struct({
 export type UpdateDocumentMetadataCommand = Schema.Schema.Type<typeof UpdateDocumentMetadataCommandSchema>;
 
 /**
+ * Delete Document Command
+ */
+export const DeleteDocumentCommandSchema = Schema.Struct({
+  documentId: pipe(
+    Schema.String,
+    Schema.filter(
+      (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str),
+      { message: () => "Document ID must be a valid UUID v4" }
+    )
+  ),
+});
+
+export type DeleteDocumentCommand = Schema.Schema.Type<typeof DeleteDocumentCommandSchema>;
+
+/**
  * Manage Access Policy Command
  */
 export const ManageAccessPolicyCommandSchema = Schema.Struct({
@@ -268,6 +283,36 @@ export const CheckPermissionQuerySchema = Schema.Struct({
 
 export type CheckPermissionQuery = Schema.Schema.Type<typeof CheckPermissionQuerySchema>;
 
+/**
+ * Generate Download Link Query
+ */
+export const GenerateDownloadLinkQuerySchema = Schema.Struct({
+  documentId: pipe(
+    Schema.String,
+    Schema.filter(
+      (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str),
+      { message: () => "Document ID must be a valid UUID v4" }
+    )
+  ),
+});
+
+export type GenerateDownloadLinkQuery = Schema.Schema.Type<typeof GenerateDownloadLinkQuerySchema>;
+
+/**
+ * Download By Token Query
+ */
+export const DownloadByTokenQuerySchema = Schema.Struct({
+  token: pipe(
+    Schema.String,
+    Schema.filter(
+      (str) => str.length > 0,
+      { message: () => "Token is required" }
+    )
+  ),
+});
+
+export type DownloadByTokenQuery = Schema.Schema.Type<typeof DownloadByTokenQuerySchema>;
+
 // ============================================================================
 // RESULT DTOs (Use Case Outputs)
 // ============================================================================
@@ -323,3 +368,25 @@ export const PermissionCheckResultSchema = Schema.Struct({
 });
 
 export type PermissionCheckResult = Schema.Schema.Type<typeof PermissionCheckResultSchema>;
+
+/**
+ * Download Link Result DTO
+ */
+export const DownloadLinkResultSchema = Schema.Struct({
+  token: Schema.String,
+  expiresAt: Schema.String,
+  downloadUrl: Schema.String,
+  document: DocumentResultSchema,
+});
+
+export type DownloadLinkResult = Schema.Schema.Type<typeof DownloadLinkResultSchema>;
+
+/**
+ * Download Result DTO
+ */
+export const DownloadResultSchema = Schema.Struct({
+  document: DocumentResultSchema,
+  filePath: Schema.String,
+});
+
+export type DownloadResult = Schema.Schema.Type<typeof DownloadResultSchema>;

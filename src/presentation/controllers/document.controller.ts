@@ -3,7 +3,7 @@ import { AppLayer } from "../../effect/layers";
 import { successResponse, errorResponse } from "../utils/response";
 import type { HttpError } from "../errors/controller.errors";
 import { mapUseCaseErrorToHttpError } from "./use-case-error-mapper";
-import { httpErrorToStatus, mapServiceErrorToHttpError } from "../errors/controller.errors";
+import { httpErrorToStatus } from "../errors/controller.errors";
 import { validateResponse } from "../middleware/schema-validator";
 import {
   documentListResponseSchema,
@@ -25,8 +25,6 @@ import type {
   UpdateDocumentMetadataCommand,
 } from "../../application/dtos/document.dtos";
 
-// Import old service for backward compatibility (upload, delete, download)
-import { DocumentService } from "../../services/document.service";
 import { config } from "../../config/app";
 
 /**
@@ -203,53 +201,13 @@ export class DocumentController {
     );
   }
 
-  // Keep old methods for backward compatibility (upload, delete, download)
-  // These will be migrated to use cases in a future update
-  // For now, they still use DocumentService
-  static async uploadDocument(file: File, metadataTags?: string[]) {
-    // TODO: Migrate to use cases (CreateDocumentUseCase + InitiateUploadUseCase + ConfirmUploadUseCase)
-    // For now, keep using DocumentService for direct file upload
-    return Effect.runPromise(
-      pipe(
-        DocumentService.createDocument(file, metadataTags),
-        Effect.provide(AppLayer),
-        Effect.mapError((serviceError) => mapServiceErrorToHttpError(serviceError)),
-        Effect.match({
-          onFailure: (httpError: HttpError) => {
-            const status = httpErrorToStatus(httpError);
-            return {
-              status,
-              body: errorResponse(httpError.message),
-            };
-          },
-          onSuccess: (document) => {
-            const responseData = {
-              id: document.id,
-              filename: document.filename,
-              originalFilename: document.originalFilename,
-              fileSize: document.fileSize,
-              metadataTags: metadataTags || [],
-              createdAt: document.createdAt,
-            };
-            const validatedData = validateResponse(responseData, uploadDocumentResponseSchema);
-            const response = successResponse(validatedData, "Document uploaded successfully");
-            return {
-              status: 201,
-              body: validateResponse(response, successResponseSchema(uploadDocumentResponseSchema)),
-            };
-          },
-        })
-      )
-    );
-  }
-
   static async deleteDocument(id: string) {
-    // TODO: Migrate to use case
+    const command = { documentId: id };
     return Effect.runPromise(
       pipe(
-        DocumentService.deleteDocument(id),
+        useCases.deleteDocument.execute(command),
         Effect.provide(AppLayer),
-        Effect.mapError((serviceError) => mapServiceErrorToHttpError(serviceError)),
+        Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
         Effect.match({
           onFailure: (httpError: HttpError) => {
             const status = httpErrorToStatus(httpError);
@@ -276,12 +234,12 @@ export class DocumentController {
   }
 
   static async generateDownloadLink(documentId: string) {
-    // TODO: Migrate to use case
+    const query = { documentId };
     return Effect.runPromise(
       pipe(
-        DocumentService.generateDownloadLink(documentId),
+        useCases.generateDownloadLink.execute(query),
         Effect.provide(AppLayer),
-        Effect.mapError((serviceError) => mapServiceErrorToHttpError(serviceError)),
+        Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
         Effect.match({
           onFailure: (httpError: HttpError) => {
             const status = httpErrorToStatus(httpError);
@@ -312,12 +270,12 @@ export class DocumentController {
   }
 
   static async downloadDocumentByToken(token: string) {
-    // TODO: Migrate to use case
+    const query = { token };
     return Effect.runPromise(
       pipe(
-        DocumentService.downloadDocumentByToken(token),
+        useCases.downloadByToken.execute(query),
         Effect.provide(AppLayer),
-        Effect.mapError((serviceError) => mapServiceErrorToHttpError(serviceError)),
+        Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
         Effect.match({
           onFailure: (httpError: HttpError) => {
             const status = httpErrorToStatus(httpError);

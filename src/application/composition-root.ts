@@ -17,11 +17,14 @@ import { DocumentRepositoryImpl } from "../infrastructure/repositories/implement
 import { UserRepositoryImpl } from "../infrastructure/repositories/implementations/user.repository.impl";
 import { AccessPolicyRepositoryImpl } from "../infrastructure/repositories/implementations/access-policy.repository.impl";
 import { DocumentVersionRepositoryImpl } from "../infrastructure/repositories/implementations/document-version.repository.impl";
+import { DownloadTokenRepositoryImpl } from "../infrastructure/repositories/implementations/download-token.repository.impl";
 
 import { CreateDocumentUseCase } from "./use-cases/create-document.use-case";
 import { GetDocumentUseCase, ListDocumentsUseCase } from "./use-cases/document-queries.use-case";
 import { InitiateUploadUseCase, ConfirmUploadUseCase } from "./use-cases/upload-workflow.use-case";
 import { PublishDocumentUseCase, UpdateDocumentMetadataUseCase } from "./use-cases/document-operations.use-case";
+import { DeleteDocumentUseCase } from "./use-cases/document-delete.use-case";
+import { GenerateDownloadLinkUseCase, DownloadByTokenUseCase } from "./use-cases/download-workflow.use-case";
 import { ManageAccessPolicyUseCase, CheckPermissionUseCase } from "./use-cases/access-control.use-case";
 
 /**
@@ -35,6 +38,7 @@ export const documentRepository = new DocumentRepositoryImpl();
 export const userRepository = new UserRepositoryImpl();
 export const accessPolicyRepository = new AccessPolicyRepositoryImpl();
 export const documentVersionRepository = new DocumentVersionRepositoryImpl();
+export const downloadTokenRepository = new DownloadTokenRepositoryImpl();
 
 /**
  * Use Case Instances
@@ -49,6 +53,9 @@ export const initiateUploadUseCase = new InitiateUploadUseCase(documentRepositor
 export const confirmUploadUseCase = new ConfirmUploadUseCase(documentRepository, documentVersionRepository);
 export const publishDocumentUseCase = new PublishDocumentUseCase(documentRepository);
 export const updateDocumentMetadataUseCase = new UpdateDocumentMetadataUseCase(documentRepository);
+export const deleteDocumentUseCase = new DeleteDocumentUseCase(documentRepository);
+export const generateDownloadLinkUseCase = new GenerateDownloadLinkUseCase(documentRepository, downloadTokenRepository);
+export const downloadByTokenUseCase = new DownloadByTokenUseCase(documentRepository, downloadTokenRepository);
 export const manageAccessPolicyUseCase = new ManageAccessPolicyUseCase(documentRepository, accessPolicyRepository);
 export const checkPermissionUseCase = new CheckPermissionUseCase(documentRepository, userRepository, accessPolicyRepository);
 
@@ -65,6 +72,9 @@ export const useCases = {
   confirmUpload: confirmUploadUseCase,
   publishDocument: publishDocumentUseCase,
   updateDocumentMetadata: updateDocumentMetadataUseCase,
+  deleteDocument: deleteDocumentUseCase,
+  generateDownloadLink: generateDownloadLinkUseCase,
+  downloadByToken: downloadByTokenUseCase,
   manageAccessPolicy: manageAccessPolicyUseCase,
   checkPermission: checkPermissionUseCase,
 } as const;

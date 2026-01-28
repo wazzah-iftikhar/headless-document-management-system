@@ -15,3 +15,4 @@ export * from "./document.repository.port";
 export * from "./user.repository.port";
 export * from "./access-policy.repository.port";
 export * from "./document-version.repository.port";
+export * from "./download-token.repository.port";
