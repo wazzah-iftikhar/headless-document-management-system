@@ -10,9 +10,9 @@ import {
   ManageAccessPolicyCommandSchema,
   CheckPermissionQuerySchema,
 } from "../dtos/document.dtos";
-import { DocumentRepositoryImpl } from "../../infrastructure/repositories/implementations/document.repository.impl";
-import { UserRepositoryImpl } from "../../infrastructure/repositories/implementations/user.repository.impl";
-import { AccessPolicyRepositoryImpl } from "../../infrastructure/repositories/implementations/access-policy.repository.impl";
+import type { IDocumentRepository } from "../ports/document.repository.port";
+import type { IUserRepository } from "../ports/user.repository.port";
+import type { IAccessPolicyRepository } from "../ports/access-policy.repository.port";
 import { persistenceToDomain as documentPersistenceToDomain } from "../../infrastructure/mappers/document.mapper";
 import { persistenceToDomain as userPersistenceToDomain } from "../../infrastructure/mappers/user.mapper";
 import { persistenceToDomain as policyPersistenceToDomain } from "../../infrastructure/mappers/access-policy.mapper";
@@ -38,10 +38,15 @@ import { randomUUID } from "crypto";
  * Transaction Boundary:
  * Two repository operations (verify document + create policy).
  * In production, these should be in a transaction. Simplified for training.
+ * 
+ * Dependency Injection:
+ * Repositories are injected via constructor, following hexagonal architecture.
  */
 export class ManageAccessPolicyUseCase {
-  private documentRepo = new DocumentRepositoryImpl();
-  private policyRepo = new AccessPolicyRepositoryImpl();
+  constructor(
+    private readonly documentRepo: IDocumentRepository,
+    private readonly policyRepo: IAccessPolicyRepository
+  ) {}
 
   execute(
     command: ManageAccessPolicyCommand
@@ -124,11 +129,16 @@ export class ManageAccessPolicyUseCase {
  * Transaction Boundary:
  * Read-only operations (fetch user, document, policies).
  * No write operations, so no transaction needed.
+ * 
+ * Dependency Injection:
+ * Repositories are injected via constructor, following hexagonal architecture.
  */
 export class CheckPermissionUseCase {
-  private documentRepo = new DocumentRepositoryImpl();
-  private userRepo = new UserRepositoryImpl();
-  private policyRepo = new AccessPolicyRepositoryImpl();
+  constructor(
+    private readonly documentRepo: IDocumentRepository,
+    private readonly userRepo: IUserRepository,
+    private readonly policyRepo: IAccessPolicyRepository
+  ) {}
 
   execute(
     query: CheckPermissionQuery

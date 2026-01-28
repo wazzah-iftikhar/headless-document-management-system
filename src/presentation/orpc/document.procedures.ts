@@ -17,11 +17,7 @@ import { Schema } from "@effect/schema";
 import { AppLayer } from "../../effect/layers";
 import { DatabaseService } from "../../effect/services/database.service";
 import type { UseCaseError } from "../../application/errors/use-case.errors";
-import { CreateDocumentUseCase } from "../../application/use-cases/create-document.use-case";
-import { InitiateUploadUseCase, ConfirmUploadUseCase } from "../../application/use-cases/upload-workflow.use-case";
-import { PublishDocumentUseCase } from "../../application/use-cases/document-operations.use-case";
-import { GetDocumentUseCase, ListDocumentsUseCase } from "../../application/use-cases/document-queries.use-case";
-import { DocumentVersionRepositoryImpl } from "../../infrastructure/repositories/implementations/document-version.repository.impl";
+import { useCases, documentVersionRepository } from "../../application/composition-root";
 import { persistenceToDomain as versionPersistenceToDomain } from "../../infrastructure/mappers/document-version.mapper";
 import {
   CreateDocumentCommandSchema,
@@ -176,8 +172,7 @@ export async function createDocument(
   // For now, use cases operate without workspace context
   // In the future: useCase.execute(validatedInput, ctx)
   
-  const useCase = new CreateDocumentUseCase();
-  const result = await executeUseCase(useCase.execute(validatedInput));
+  const result = await executeUseCase(useCases.createDocument.execute(validatedInput));
   
   // Validate output using Effect Schema DTO directly
   return validateOutputWithEffectSchema(DocumentResultOutputValidator, result);
@@ -207,8 +202,7 @@ export async function initiateUpload(
   
   // TODO: Pass context to use case when use cases support workspace context
   
-  const useCase = new InitiateUploadUseCase();
-  const result = await executeUseCase(useCase.execute(validatedInput));
+  const result = await executeUseCase(useCases.initiateUpload.execute(validatedInput));
   return validateOutputWithEffectSchema(UploadInitiationOutputValidator, result);
 }
 
@@ -236,8 +230,7 @@ export async function confirmUpload(
   
   // TODO: Pass context to use case when use cases support workspace context
   
-  const useCase = new ConfirmUploadUseCase();
-  const result = await executeUseCase(useCase.execute(validatedInput));
+  const result = await executeUseCase(useCases.confirmUpload.execute(validatedInput));
   return validateOutputWithEffectSchema(UploadConfirmationOutputValidator, result);
 }
 
@@ -265,8 +258,7 @@ export async function publishDocument(
   
   // TODO: Pass context to use case when use cases support workspace context
   
-  const useCase = new PublishDocumentUseCase();
-  const result = await executeUseCase(useCase.execute(validatedInput));
+  const result = await executeUseCase(useCases.publishDocument.execute(validatedInput));
   return validateOutputWithEffectSchema(DocumentResultOutputValidator, result);
 }
 
@@ -294,8 +286,7 @@ export async function getDocument(
   
   // TODO: Pass context to use case for workspace-scoped queries
   
-  const useCase = new GetDocumentUseCase();
-  const result = await executeUseCase(useCase.execute(validatedInput));
+  const result = await executeUseCase(useCases.getDocument.execute(validatedInput));
   return validateOutputWithEffectSchema(DocumentResultOutputValidator, result);
 }
 
@@ -324,8 +315,7 @@ export async function listDocuments(
   // TODO: Pass context to use case for workspace-scoped document listing
   // The use case should filter documents by workspaceId when context is available
   
-  const useCase = new ListDocumentsUseCase();
-  const result = await executeUseCase(useCase.execute(validatedInput));
+  const result = await executeUseCase(useCases.listDocuments.execute(validatedInput));
   // Validate each document in the result
   const validatedDocuments = await Promise.all(
     result.documents.map((doc) => validateOutputWithEffectSchema(DocumentResultOutputValidator, doc))
@@ -374,7 +364,6 @@ export async function getVersionHistory(
   const versionHistoryQueryValidator = createEffectSchemaValidator(versionHistoryQuerySchema);
   const validatedInput = await validateWithEffectSchema(versionHistoryQueryValidator, input);
   
-  const versionRepo = new DocumentVersionRepositoryImpl();
   const pagination = {
     page: validatedInput.page || 1,
     limit: validatedInput.limit || 20,
@@ -382,7 +371,7 @@ export async function getVersionHistory(
 
   return Effect.runPromise(
     pipe(
-      versionRepo.findByDocumentId(validatedInput.documentId, pagination),
+      documentVersionRepository.findByDocumentId(validatedInput.documentId, pagination),
       Effect.provide(AppLayer),
       Effect.flatMap((paginated) =>
         pipe(

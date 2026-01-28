@@ -11,8 +11,8 @@ import {
   InitiateUploadCommandSchema,
   ConfirmUploadCommandSchema,
 } from "../dtos/document.dtos";
-import { DocumentRepositoryImpl } from "../../infrastructure/repositories/implementations/document.repository.impl";
-import { DocumentVersionRepositoryImpl } from "../../infrastructure/repositories/implementations/document-version.repository.impl";
+import type { IDocumentRepository } from "../ports/document.repository.port";
+import type { IDocumentVersionRepository } from "../ports/document-version.repository.port";
 import { persistenceToDomain as documentPersistenceToDomain } from "../../infrastructure/mappers/document.mapper";
 import { persistenceToDomain as versionPersistenceToDomain } from "../../infrastructure/mappers/document-version.mapper";
 import { DatabaseService } from "../../effect/services/database.service";
@@ -107,9 +107,12 @@ const uploadTokenStore = new UploadTokenStore();
  * 2. Verify document exists
  * 3. Generate upload token with expiration
  * 4. Return upload token and URL
+ * 
+ * Dependency Injection:
+ * Repository is injected via constructor, following hexagonal architecture.
  */
 export class InitiateUploadUseCase {
-  private documentRepo = new DocumentRepositoryImpl();
+  constructor(private readonly documentRepo: IDocumentRepository) {}
 
   execute(
     command: InitiateUploadCommand
@@ -189,10 +192,15 @@ export class InitiateUploadUseCase {
  * - Checksum-based duplicate detection prevents duplicate uploads
  * - If document already has the same checksum, returns existing version
  * - Prevents duplicate file storage and version creation
+ * 
+ * Dependency Injection:
+ * Repositories are injected via constructor, following hexagonal architecture.
  */
 export class ConfirmUploadUseCase {
-  private documentRepo = new DocumentRepositoryImpl();
-  private versionRepo = new DocumentVersionRepositoryImpl();
+  constructor(
+    private readonly documentRepo: IDocumentRepository,
+    private readonly versionRepo: IDocumentVersionRepository
+  ) {}
 
   execute(
     command: ConfirmUploadCommand

@@ -6,7 +6,7 @@ import { DatabaseService } from "../../../effect/services/database.service";
 import type { Paginated, PaginationParams } from "../../../types/pagination";
 import { DEFAULT_PAGINATION, calculatePaginationMeta } from "../../../types/pagination";
 import type { DocumentVersionPersistence } from "../../../domain/document/document-version.entity.schema";
-import type { IDocumentVersionRepository } from "../contracts/document-version.repository.contract";
+import type { IDocumentVersionRepository } from "../../../application/ports/document-version.repository.port";
 import { documentVersions } from "../../database/schemas/document-versions.schema";
 import type {
   DocumentVersionRow,

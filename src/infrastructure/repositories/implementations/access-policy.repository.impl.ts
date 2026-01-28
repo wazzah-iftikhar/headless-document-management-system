@@ -6,7 +6,7 @@ import { DatabaseService } from "../../../effect/services/database.service";
 import type { Paginated, PaginationParams } from "../../../types/pagination";
 import { DEFAULT_PAGINATION, calculatePaginationMeta } from "../../../types/pagination";
 import type { AccessPolicyPersistence } from "../../../domain/access-policy/access-policy.entity.schema";
-import type { IAccessPolicyRepository } from "../contracts/access-policy.repository.contract";
+import type { IAccessPolicyRepository } from "../../../application/ports/access-policy.repository.port";
 import { accessPolicies } from "../../database/schemas/access-policies.schema";
 import type { AccessPolicyRow, NewAccessPolicyRow } from "../../database/schemas/access-policies.schema";
 

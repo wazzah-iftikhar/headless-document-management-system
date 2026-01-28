@@ -6,7 +6,7 @@ import { DatabaseService } from "../../../effect/services/database.service";
 import type { Paginated, PaginationParams } from "../../../types/pagination";
 import { DEFAULT_PAGINATION, calculatePaginationMeta } from "../../../types/pagination";
 import type { UserPersistence } from "../../../domain/user/user.entity.schema";
-import type { IUserRepository } from "../contracts/user.repository.contract";
+import type { IUserRepository } from "../../../application/ports/user.repository.port";
 import { users } from "../../database/schemas/users.schema";
 import type { UserRow, NewUserRow } from "../../database/schemas/users.schema";
 

@@ -10,7 +10,7 @@ import {
   PublishDocumentCommandSchema,
   UpdateDocumentMetadataCommandSchema,
 } from "../dtos/document.dtos";
-import { DocumentRepositoryImpl } from "../../infrastructure/repositories/implementations/document.repository.impl";
+import type { IDocumentRepository } from "../ports/document.repository.port";
 import { persistenceToDomain } from "../../infrastructure/mappers/document.mapper";
 import type { DocumentDomain } from "../../domain/document/document.entity.schema";
 import { DatabaseService } from "../../effect/services/database.service";
@@ -35,9 +35,12 @@ import { DatabaseService } from "../../effect/services/database.service";
  * 
  * Transaction Boundary:
  * Single repository operation (update document). Atomic by default.
+ * 
+ * Dependency Injection:
+ * Repository is injected via constructor, following hexagonal architecture.
  */
 export class PublishDocumentUseCase {
-  private documentRepo = new DocumentRepositoryImpl();
+  constructor(private readonly documentRepo: IDocumentRepository) {}
 
   execute(
     command: PublishDocumentCommand
@@ -73,7 +76,7 @@ export class PublishDocumentUseCase {
               persistenceToDomain(persistence),
               Effect.flatMap((domain) => {
                 // Extract current status from metadata tags
-                const currentStatus = this.extractStatusFromTags(domain.metadataTags);
+                const currentStatus = this.extractStatusFromTags([...domain.metadataTags]);
                 
                 // Validate transition
                 if (!this.isValidTransition(currentStatus, validatedCommand.status)) {
@@ -95,7 +98,7 @@ export class PublishDocumentUseCase {
               // Remove old status tag and add new one
               this.documentRepo.update(validatedCommand.documentId, {
                 metadataTags: JSON.stringify(
-                  this.updateStatusInTags(domain.metadataTags, validatedCommand.status)
+                  this.updateStatusInTags([...domain.metadataTags], validatedCommand.status)
                 ),
               }),
               Effect.mapError((repoError) => ({
@@ -180,9 +183,12 @@ export class PublishDocumentUseCase {
  * 
  * Transaction Boundary:
  * Single repository operation (update document). Atomic by default.
+ * 
+ * Dependency Injection:
+ * Repository is injected via constructor, following hexagonal architecture.
  */
 export class UpdateDocumentMetadataUseCase {
-  private documentRepo = new DocumentRepositoryImpl();
+  constructor(private readonly documentRepo: IDocumentRepository) {}
 
   execute(
     command: UpdateDocumentMetadataCommand

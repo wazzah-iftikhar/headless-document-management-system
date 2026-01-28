@@ -15,10 +15,8 @@ import {
   downloadLinkResponseSchema,
 } from "../validations/document.schema";
 
-// Import new use cases
-import { GetDocumentUseCase } from "../../application/use-cases/document-queries.use-case";
-import { ListDocumentsUseCase } from "../../application/use-cases/document-queries.use-case";
-import { UpdateDocumentMetadataUseCase } from "../../application/use-cases/document-operations.use-case";
+// Import use cases from composition root
+import { useCases } from "../../application/composition-root";
 
 // Import DTOs
 import type {
@@ -44,7 +42,6 @@ export class DocumentController {
    * Uses new ListDocumentsUseCase
    */
   static async getAllDocuments() {
-    const useCase = new ListDocumentsUseCase();
     const query: ListDocumentsQuery = {
       page: 1,
       limit: 1000, // Get all documents
@@ -52,7 +49,7 @@ export class DocumentController {
 
     return Effect.runPromise(
       pipe(
-        useCase.execute(query),
+        useCases.listDocuments.execute(query),
         Effect.provide(AppLayer),
         Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
         Effect.match({
@@ -90,12 +87,11 @@ export class DocumentController {
    * Uses new GetDocumentUseCase
    */
   static async getDocumentById(id: string) {
-    const useCase = new GetDocumentUseCase();
     const query: GetDocumentQuery = { documentId: id };
 
     return Effect.runPromise(
       pipe(
-        useCase.execute(query),
+        useCases.getDocument.execute(query),
         Effect.provide(AppLayer),
         Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
         Effect.match({
@@ -124,7 +120,6 @@ export class DocumentController {
    * Uses new UpdateDocumentMetadataUseCase
    */
   static async updateDocument(id: string, metadataTags?: string[]) {
-    const useCase = new UpdateDocumentMetadataUseCase();
     const command: UpdateDocumentMetadataCommand = {
       documentId: id,
       metadataTags,
@@ -132,7 +127,7 @@ export class DocumentController {
 
     return Effect.runPromise(
       pipe(
-        useCase.execute(command),
+        useCases.updateDocumentMetadata.execute(command),
         Effect.provide(AppLayer),
         Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
         Effect.match({
@@ -161,7 +156,6 @@ export class DocumentController {
    * Uses new ListDocumentsUseCase with tags filter
    */
   static async searchDocumentsByTags(searchTags: string[]) {
-    const useCase = new ListDocumentsUseCase();
     const query: ListDocumentsQuery = {
       tags: searchTags,
       page: 1,
@@ -170,7 +164,7 @@ export class DocumentController {
 
     return Effect.runPromise(
       pipe(
-        useCase.execute(query),
+        useCases.listDocuments.execute(query),
         Effect.provide(AppLayer),
         Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
         Effect.match({

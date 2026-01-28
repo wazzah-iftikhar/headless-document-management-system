@@ -6,7 +6,7 @@ import type {
   DocumentResult,
 } from "../dtos/document.dtos";
 import { CreateDocumentCommandSchema } from "../dtos/document.dtos";
-import { DocumentRepositoryImpl } from "../../infrastructure/repositories/implementations/document.repository.impl";
+import type { IDocumentRepository } from "../ports/document.repository.port";
 import { persistenceToDomain } from "../../infrastructure/mappers/document.mapper";
 import type { DocumentDomain } from "../../domain/document/document.entity.schema";
 import { DatabaseService } from "../../effect/services/database.service";
@@ -31,9 +31,13 @@ import { randomUUID } from "crypto";
  * 
  * Transaction Boundary:
  * Single repository operation (create document). Atomic by default.
+ * 
+ * Dependency Injection:
+ * Repository is injected via constructor, following hexagonal architecture.
+ * The application layer depends on the port (interface), not the adapter (implementation).
  */
 export class CreateDocumentUseCase {
-  private documentRepo = new DocumentRepositoryImpl();
+  constructor(private readonly documentRepo: IDocumentRepository) {}
 
   /**
    * Execute the create document use case

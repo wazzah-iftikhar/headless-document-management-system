@@ -10,7 +10,7 @@ import {
   GetDocumentQuerySchema,
   ListDocumentsQuerySchema,
 } from "../dtos/document.dtos";
-import { DocumentRepositoryImpl } from "../../infrastructure/repositories/implementations/document.repository.impl";
+import type { IDocumentRepository } from "../ports/document.repository.port";
 import { persistenceToDomain } from "../../infrastructure/mappers/document.mapper";
 import type { DocumentDomain } from "../../domain/document/document.entity.schema";
 import { DatabaseService } from "../../effect/services/database.service";
@@ -30,9 +30,12 @@ import { DatabaseService } from "../../effect/services/database.service";
  * 
  * Transaction Boundary:
  * Read-only operation (fetch document). No transaction needed.
+ * 
+ * Dependency Injection:
+ * Repository is injected via constructor, following hexagonal architecture.
  */
 export class GetDocumentUseCase {
-  private documentRepo = new DocumentRepositoryImpl();
+  constructor(private readonly documentRepo: IDocumentRepository) {}
 
   execute(
     query: GetDocumentQuery
@@ -105,9 +108,12 @@ export class GetDocumentUseCase {
  * 
  * Transaction Boundary:
  * Read-only operation (fetch documents). No transaction needed.
+ * 
+ * Dependency Injection:
+ * Repository is injected via constructor, following hexagonal architecture.
  */
 export class ListDocumentsUseCase {
-  private documentRepo = new DocumentRepositoryImpl();
+  constructor(private readonly documentRepo: IDocumentRepository) {}
 
   execute(
     query: ListDocumentsQuery
@@ -133,7 +139,7 @@ export class ListDocumentsUseCase {
 
         // If tags are provided, use findByTags, otherwise use findAll
         const fetchEffect = validatedQuery.tags && validatedQuery.tags.length > 0
-          ? this.documentRepo.findByTags(validatedQuery.tags, pagination)
+          ? this.documentRepo.findByTags([...validatedQuery.tags], pagination)
           : this.documentRepo.findAll(pagination);
 
         return pipe(
