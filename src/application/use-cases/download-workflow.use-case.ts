@@ -16,7 +16,8 @@ import type { IDocumentRepository } from "../ports/document.repository.port";
 import type { IDownloadTokenRepository } from "../ports/download-token.repository.port";
 import { persistenceToDomain } from "../../infrastructure/mappers/document.mapper";
 import type { DocumentDomain } from "../../domain/document/document.entity.schema";
-import { DatabaseService, ConfigService } from "../../effect/services/database.service";
+import { DatabaseService } from "../../effect/services/database.service";
+import { ConfigService } from "../../effect/services/config.service";
 import { FileSystemService } from "../../effect/services/filesystem.service";
 import { generateDownloadToken } from "../../utils/token";
 

@@ -1,8 +1,8 @@
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
+import { sql } from "drizzle-orm";
 import * as schema from "../infrastructure/database/schemas";
 import { migrateUp, loadMigrations } from "../infrastructure/database/migrations/migration-runner";
-import { sql } from "drizzle-orm";
 
 /**
  * Initialize database schema using migrations
@@ -10,34 +10,53 @@ import { sql } from "drizzle-orm";
  */
 export async function initDatabase() {
   try {
-    // Create documents table
-    await db.run(sql`
-      CREATE TABLE IF NOT EXISTS documents (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        filename TEXT NOT NULL,
-        original_filename TEXT NOT NULL,
-        file_path TEXT NOT NULL,
-        file_size INTEGER NOT NULL,
-        metadata_tags TEXT,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    // Create database connection
+    const sqlite = new Database("database.sqlite");
+    const db = drizzle(sqlite, { schema });
 
-    // Also create download_tokens table (updated to use TEXT document_id for UUIDs)
-    await db.run(sql`
-      CREATE TABLE IF NOT EXISTS download_tokens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        token TEXT NOT NULL UNIQUE,
-        document_id TEXT NOT NULL,
-        expires_at TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        used_at TEXT
-      )
-    `);
+    // Check if main tables already exist
+    const tables = await db.all<{ name: string }[]>(
+      sql`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != 'drizzle_migrations'`
+    );
 
+    const hasMainTables = tables.some(t => 
+      ['documents', 'users', 'access_policies', 'document_versions'].includes(t.name)
+    );
+
+    if (hasMainTables) {
+      // Tables exist, ensure migrations table exists and check if migrations are recorded
+      await db.run(sql`
+        CREATE TABLE IF NOT EXISTS drizzle_migrations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          hash TEXT NOT NULL,
+          created_at INTEGER
+        )
+      `);
+      
+      const migrations = await loadMigrations("./drizzle");
+      const recordedMigrations = await db.all<{ hash: string }[]>(
+        sql`SELECT hash FROM drizzle_migrations`
+      );
+      const recordedHashes = new Set(recordedMigrations.map(m => m.hash));
+
+      // Record any missing migrations as applied (since tables already exist)
+      for (const migration of migrations) {
+        if (!recordedHashes.has(migration.name)) {
+          await db.run(
+            sql`INSERT INTO drizzle_migrations (hash, created_at) VALUES (${migration.name}, ${Date.now()})`
+          );
+        }
+      }
+      console.log("✅ Database already initialized, migrations marked as applied");
+    } else {
+      // No tables exist, run migrations normally
+      const migrations = await loadMigrations("./drizzle");
+      await migrateUp(db, migrations);
+      console.log("✅ Database initialized successfully with migrations");
+    }
+
+    // Close the connection (we'll create a new one when needed)
     sqlite.close();
-    console.log("✅ Database initialized successfully with migrations");
   } catch (error) {
     console.error("❌ Database initialization failed:", error);
     throw error;

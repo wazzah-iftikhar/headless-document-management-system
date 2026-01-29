@@ -5,5 +5,4 @@
  */
 
 export * from "./document.controller";
-export * from "./auth.controller";
 export * from "./use-case-error-mapper";
