@@ -13,9 +13,6 @@ const app = new Elysia()
     runtime: "bun",
   }))
   // oRPC endpoint - handle all /rpc paths
-  .all("/rpc", async ({ request }) => {
-    return handleOrpcRequest(request);
-  })
   .all("/rpc/*", async ({ request }) => {
     return handleOrpcRequest(request);
   })
