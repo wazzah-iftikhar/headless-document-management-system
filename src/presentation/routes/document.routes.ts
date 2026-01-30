@@ -2,14 +2,20 @@ import { Elysia, t } from "elysia";
 import { DocumentController } from "../controllers/document.controller";
 import {
   uploadDocumentSchema,
-  updateDocumentSchema,
-  searchDocumentSchema,
-  documentIdParamsSchema,
   downloadTokenParamsSchema,
-  searchQuerySchema,
 } from "../validations/document.schema";
-import { validateParams, validateQuery, validateBody } from "../middleware/schema-validator";
+import { validateParams, validateBody } from "../middleware/schema-validator";
 
+/**
+ * Document Routes
+ * 
+ * Only handles file operations (upload and download).
+ * All other operations should use oRPC at /rpc/document.*
+ * 
+ * Kept routes:
+ * - POST /documents/upload - File upload (multipart/form-data)
+ * - GET /documents/download/:token - Binary file download
+ */
 export const documentRoutes = new Elysia({ prefix: "/documents" })
   .post(
     "/upload",
@@ -35,129 +41,6 @@ export const documentRoutes = new Elysia({ prefix: "/documents" })
           type: "application/pdf",
         }),
         metadataTags: t.Optional(t.Array(t.String())),
-      }),
-    }
-  )
-  .get("/", async () => {
-    return DocumentController.getAllDocuments();
-  })
-  .get(
-    "/search",
-    async ({ query }) => {
-      // Validate query params
-      const queryValidation = validateQuery(searchQuerySchema, query);
-      if (queryValidation.error) {
-        return queryValidation.error.body;
-      }
-
-      // Validate tags after transformation
-      const validationResult = validateBody(searchDocumentSchema, { tags: queryValidation.data.tags });
-      if (validationResult.error) {
-        return validationResult.error.body;
-      }
-
-      return DocumentController.searchDocumentsByTags([...validationResult.data.tags]);
-    },
-    {
-      query: t.Object({
-        tags: t.Union([t.String(), t.Array(t.String())]),
-      }),
-    }
-  )
-  .post(
-    "/search",
-    async ({ body }) => {
-      // Support POST with body: { tags: ["tag1", "tag2"] }
-      const bodyValidation = validateBody(searchDocumentSchema, body);
-      if (bodyValidation.error) {
-        return bodyValidation.error.body;
-      }
-
-      return DocumentController.searchDocumentsByTags([...bodyValidation.data.tags]);
-    },
-    {
-      body: t.Object({
-        tags: t.Array(t.String()),
-      }),
-    }
-  )
-  .get(
-    "/:id",
-    async ({ params }) => {
-      // Validate params
-      const paramsValidation = validateParams(documentIdParamsSchema, params);
-      if (paramsValidation.error) {
-        return paramsValidation.error.body;
-      }
-
-      return DocumentController.getDocumentById(paramsValidation.data.id);
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-    }
-  )
-  .put(
-    "/:id",
-    async ({ params, body }) => {
-      // Validate params
-      const paramsValidation = validateParams(documentIdParamsSchema, params);
-      if (paramsValidation.error) {
-        return paramsValidation.error.body;
-      }
-
-      // Validate request body
-      const bodyValidation = validateBody(updateDocumentSchema, body);
-      if (bodyValidation.error) {
-        return bodyValidation.error.body;
-      }
-
-      return DocumentController.updateDocument(
-        paramsValidation.data.id,
-        bodyValidation.data.metadataTags ? [...bodyValidation.data.metadataTags] : undefined
-      );
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-      body: t.Object({
-        metadataTags: t.Optional(t.Array(t.String())),
-      }),
-    }
-  )
-  .delete(
-    "/:id",
-    async ({ params }) => {
-      // Validate params
-      const paramsValidation = validateParams(documentIdParamsSchema, params);
-      if (paramsValidation.error) {
-        return paramsValidation.error.body;
-      }
-
-      return DocumentController.deleteDocument(paramsValidation.data.id);
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-    }
-  )
-  .post(
-    "/:id/download-link",
-    async ({ params }) => {
-      // Validate params
-      const paramsValidation = validateParams(documentIdParamsSchema, params);
-      if (paramsValidation.error) {
-        return paramsValidation.error.body;
-      }
-
-      return DocumentController.generateDownloadLink(paramsValidation.data.id);
-    },
-    {
-      params: t.Object({
-        id: t.String(),
       }),
     }
   )

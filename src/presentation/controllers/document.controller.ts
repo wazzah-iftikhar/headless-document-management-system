@@ -1,231 +1,94 @@
 import { Effect, pipe } from "effect";
 import { AppLayer } from "../../effect/layers";
-import { successResponse, errorResponse } from "../utils/response";
+import { errorResponse } from "../utils/response";
 import type { HttpError } from "../errors/controller.errors";
 import { mapUseCaseErrorToHttpError } from "./use-case-error-mapper";
 import { httpErrorToStatus } from "../errors/controller.errors";
 import { validateResponse } from "../middleware/schema-validator";
 import {
-  documentListResponseSchema,
-  documentResponseSchema,
-  updateDocumentResponseSchema,
-  successResponseSchema,
   uploadDocumentResponseSchema,
-  deleteDocumentResponseSchema,
-  downloadLinkResponseSchema,
+  successResponseSchema,
 } from "../validations/document.schema";
+import { successResponse } from "../utils/response";
 
 // Import use cases from composition root
 import { useCases } from "../../application/composition-root";
 
-// Import DTOs
-import type {
-  GetDocumentQuery,
-  ListDocumentsQuery,
-  UpdateDocumentMetadataCommand,
-} from "../../application/dtos/document.dtos";
-
-import { config } from "../../config/app";
-
 /**
- * Document Controller (Updated to use new use cases)
+ * Document Controller
  * 
- * Maps HTTP requests to use case commands/queries and use case results to HTTP responses.
- * This is the boundary between HTTP layer and application layer.
+ * Handles ONLY file operations (upload and download).
+ * All other operations should use oRPC procedures.
+ * 
+ * This controller is kept for:
+ * - File uploads (multipart/form-data) - HTTP handles this better
+ * - Binary file downloads - HTTP returns files with proper headers
  */
 export class DocumentController {
 
   /**
-   * Get all documents
-   * Uses new ListDocumentsUseCase
+   * Upload Document
+   * Handles file upload via multipart/form-data
+   * This is the only non-RPC operation that needs HTTP
    */
-  static async getAllDocuments() {
-    const query: ListDocumentsQuery = {
-      page: 1,
-      limit: 1000, // Get all documents
+  static async uploadDocument(file: File, metadataTags?: string[]) {
+    // Read file content
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    // Get file metadata
+    const originalFilename = file.name;
+    const fileSize = file.size;
+
+    // Use the upload workflow use case
+    // First, create the document
+    const createCommand = {
+      filename: `${Date.now()}_${originalFilename}`,
+      originalFilename,
+      metadataTags: metadataTags || [],
     };
 
     return Effect.runPromise(
       pipe(
-        useCases.listDocuments.execute(query),
+        useCases.createDocument.execute(createCommand),
         Effect.provide(AppLayer),
         Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
+        Effect.flatMap((document) =>
+          // Save the file to disk
+          Effect.tryPromise({
+            try: async () => {
+              const filePath = `./uploads/${document.filename}`;
+              await Bun.write(filePath, buffer);
+              return { document, fileSize };
+            },
+            catch: (error) => new Error(`Failed to save file: ${error instanceof Error ? error.message : String(error)}`),
+          })
+        ),
         Effect.match({
-          onFailure: (httpError: HttpError) => {
-            const status = httpErrorToStatus(httpError);
+          onFailure: (httpError: HttpError | Error) => {
+            const status = httpError instanceof Error && 'status' in httpError 
+              ? httpErrorToStatus(httpError as HttpError)
+              : 500;
+            const message = httpError instanceof Error ? httpError.message : String(httpError);
             return {
               status,
-              body: errorResponse(httpError.message),
+              body: errorResponse(message),
             };
           },
-          onSuccess: (result) => {
-            // Map paginated result to response format
-            const responseData = result.documents.map((doc) => ({
-              id: doc.id,
-              filename: doc.filename,
-              originalFilename: doc.originalFilename,
-              fileSize: doc.fileSize,
-              metadataTags: doc.metadataTags,
-              createdAt: doc.createdAt,
-            }));
-            const validatedData = validateResponse(responseData, documentListResponseSchema);
-            const response = successResponse(validatedData);
-            return {
-              status: 200,
-              body: validateResponse(response, successResponseSchema(documentListResponseSchema)),
-            };
-          },
-        })
-      )
-    );
-  }
-
-  /**
-   * Get document by ID
-   * Uses new GetDocumentUseCase
-   */
-  static async getDocumentById(id: string) {
-    const query: GetDocumentQuery = { documentId: id };
-
-    return Effect.runPromise(
-      pipe(
-        useCases.getDocument.execute(query),
-        Effect.provide(AppLayer),
-        Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
-        Effect.match({
-          onFailure: (httpError: HttpError) => {
-            const status = httpErrorToStatus(httpError);
-            return {
-              status,
-              body: errorResponse(httpError.message),
-            };
-          },
-          onSuccess: (document) => {
-            const validatedData = validateResponse(document, documentResponseSchema);
-            const response = successResponse(validatedData);
-            return {
-              status: 200,
-              body: validateResponse(response, successResponseSchema(documentResponseSchema)),
-            };
-          },
-        })
-      )
-    );
-  }
-
-  /**
-   * Update document metadata
-   * Uses new UpdateDocumentMetadataUseCase
-   */
-  static async updateDocument(id: string, metadataTags?: string[]) {
-    const command: UpdateDocumentMetadataCommand = {
-      documentId: id,
-      metadataTags,
-    };
-
-    return Effect.runPromise(
-      pipe(
-        useCases.updateDocumentMetadata.execute(command),
-        Effect.provide(AppLayer),
-        Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
-        Effect.match({
-          onFailure: (httpError: HttpError) => {
-            const status = httpErrorToStatus(httpError);
-            return {
-              status,
-              body: errorResponse(httpError.message),
-            };
-          },
-          onSuccess: (document) => {
-            const validatedData = validateResponse(document, updateDocumentResponseSchema);
-            const response = successResponse(validatedData, "Document updated successfully");
-            return {
-              status: 200,
-              body: validateResponse(response, successResponseSchema(updateDocumentResponseSchema)),
-            };
-          },
-        })
-      )
-    );
-  }
-
-  /**
-   * Search documents by tags
-   * Uses new ListDocumentsUseCase with tags filter
-   */
-  static async searchDocumentsByTags(searchTags: string[]) {
-    const query: ListDocumentsQuery = {
-      tags: searchTags,
-      page: 1,
-      limit: 1000,
-    };
-
-    return Effect.runPromise(
-      pipe(
-        useCases.listDocuments.execute(query),
-        Effect.provide(AppLayer),
-        Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
-        Effect.match({
-          onFailure: (httpError: HttpError) => {
-            const status = httpErrorToStatus(httpError);
-            return {
-              status,
-              body: errorResponse(httpError.message),
-            };
-          },
-          onSuccess: (result) => {
-            const responseData = {
-              documents: result.documents.map((doc) => ({
-                id: doc.id,
-                filename: doc.filename,
-                originalFilename: doc.originalFilename,
-                fileSize: doc.fileSize,
-                metadataTags: doc.metadataTags,
-                createdAt: doc.createdAt,
-              })),
-              count: result.documents.length,
-              searchTags,
-            };
-            const validatedData = validateResponse(responseData, documentListResponseSchema);
-            const response = successResponse(
-              validatedData,
-              `Found ${result.documents.length} document(s) matching the search criteria`
-            );
-            return {
-              status: 200,
-              body: validateResponse(response, successResponseSchema(documentListResponseSchema)),
-            };
-          },
-        })
-      )
-    );
-  }
-
-  static async deleteDocument(id: string) {
-    const command = { documentId: id };
-    return Effect.runPromise(
-      pipe(
-        useCases.deleteDocument.execute(command),
-        Effect.provide(AppLayer),
-        Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
-        Effect.match({
-          onFailure: (httpError: HttpError) => {
-            const status = httpErrorToStatus(httpError);
-            return {
-              status,
-              body: errorResponse(httpError.message),
-            };
-          },
-          onSuccess: (document) => {
-            const responseData = {
+          onSuccess: ({ document, fileSize }) => {
+            const validatedData = validateResponse({
               id: document.id,
               filename: document.filename,
-            };
-            const validatedData = validateResponse(responseData, deleteDocumentResponseSchema);
-            const response = successResponse(validatedData, "Document deleted successfully");
+              originalFilename: document.originalFilename,
+              fileSize,
+              metadataTags: document.metadataTags,
+              createdAt: document.createdAt,
+            }, uploadDocumentResponseSchema);
+
+            const response = successResponse(validatedData, "Document uploaded successfully");
             return {
-              status: 200,
-              body: validateResponse(response, successResponseSchema(deleteDocumentResponseSchema)),
+              status: 201,
+              body: validateResponse(response, successResponseSchema(uploadDocumentResponseSchema)),
             };
           },
         })
@@ -233,42 +96,11 @@ export class DocumentController {
     );
   }
 
-  static async generateDownloadLink(documentId: string) {
-    const query = { documentId };
-    return Effect.runPromise(
-      pipe(
-        useCases.generateDownloadLink.execute(query),
-        Effect.provide(AppLayer),
-        Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
-        Effect.match({
-          onFailure: (httpError: HttpError) => {
-            const status = httpErrorToStatus(httpError);
-            return {
-              status,
-              body: errorResponse(httpError.message),
-            };
-          },
-          onSuccess: (downloadLink) => {
-            const responseData = {
-              downloadUrl: downloadLink.downloadUrl,
-              token: downloadLink.token,
-              expiresAt: downloadLink.expiresAt,
-              expiresInMinutes: config.downloadLinkExpiryMinutes,
-              documentId: downloadLink.document.id,
-              originalFilename: downloadLink.document.originalFilename,
-            };
-            const validatedData = validateResponse(responseData, downloadLinkResponseSchema);
-            const response = successResponse(validatedData, "Download link generated successfully");
-            return {
-              status: 200,
-              body: validateResponse(response, successResponseSchema(downloadLinkResponseSchema)),
-            };
-          },
-        })
-      )
-    );
-  }
-
+  /**
+   * Download Document by Token
+   * Returns binary PDF file with proper HTTP headers
+   * This needs HTTP for binary file delivery
+   */
   static async downloadDocumentByToken(token: string) {
     const query = { token };
     return Effect.runPromise(
@@ -279,10 +111,13 @@ export class DocumentController {
         Effect.match({
           onFailure: (httpError: HttpError) => {
             const status = httpErrorToStatus(httpError);
-            return {
-              status,
-              body: errorResponse(httpError.message),
-            };
+            return new Response(
+              JSON.stringify(errorResponse(httpError.message)),
+              {
+                status,
+                headers: { "Content-Type": "application/json" },
+              }
+            );
           },
           onSuccess: (downloadData) => {
             const file = Bun.file(downloadData.filePath);

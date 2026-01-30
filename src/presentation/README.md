@@ -10,10 +10,13 @@ The **Presentation Layer** is the HTTP/API layer that handles incoming HTTP requ
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  HTTP Request → Routes → Controllers → Use Cases           │
+│  oRPC Request → Router → Procedures → Use Cases           │
 │                                                             │
 │  Components:                                                │
-│  • Routes (HTTP endpoint definitions)                      │
-│  • Controllers (Request/Response handling)                │
+│  • Routes (HTTP endpoints for file operations)            │
+│  • Controllers (File upload/download only)               │
+│  • oRPC Router (Type-safe RPC for all other operations)   │
+│  • oRPC Procedures (Type-safe request/response handlers)  │
 │  • Middleware (Validation, Auth, etc.)                     │
 │  • Validations (Request/Response schemas)                  │
 │  • Error Mappers (Use case errors → HTTP errors)            │
@@ -44,61 +47,101 @@ The **Presentation Layer** is the HTTP/API layer that handles incoming HTTP requ
 ```typescript
 // src/routes/document.routes.ts
 export const documentRoutes = new Elysia({ prefix: "/documents" })
-  .get("/", async () => {
-    return DocumentController.getAllDocuments();
+  // File upload - HTTP handles multipart/form-data better
+  .post("/upload", async ({ body }) => {
+    const { file, metadataTags } = body;
+    return DocumentController.uploadDocument(file, metadataTags);
   })
-  .get("/:id", async ({ params }) => {
-    const validation = validateParams(documentIdParamsSchema, params);
-    if (validation.error) return validation.error.body;
-    return DocumentController.getDocumentById(validation.data.id);
-  })
-  .post("/", async ({ body }) => {
-    const validation = validateBody(createDocumentSchema, body);
-    if (validation.error) return validation.error.body;
-    return DocumentController.createDocument(validation.data);
+  // File download - HTTP handles binary responses with headers
+  .get("/download/:token", async ({ params }) => {
+    return DocumentController.downloadDocumentByToken(params.token);
   });
+
+// Note: All other operations (get, list, update, delete, search) 
+// are handled via oRPC at /rpc/document.*
 ```
 
 ### 2. Controllers (`src/controllers/`)
 
-**Purpose**: Map HTTP requests to use cases and use case results to HTTP responses
+**Purpose**: Handle file operations only (upload and download)
 
 **Responsibilities**:
-- Extract data from HTTP requests
-- Map HTTP requests to application DTOs (commands/queries)
-- Execute use cases
+- Handle file uploads via multipart/form-data
+- Handle binary file downloads with proper HTTP headers
+- Map file operations to use cases
 - Map use case results to HTTP responses
 - Handle errors and map to HTTP status codes
+
+**Note**: All other operations (get, list, update, delete, search) are handled via oRPC procedures. Controllers are kept only for file operations because:
+- File uploads work better with HTTP multipart/form-data
+- Binary file downloads need proper HTTP headers (Content-Type, Content-Disposition)
 
 **Example**:
 ```typescript
 // src/controllers/document.controller.ts
 export class DocumentController {
-  static async getDocumentById(id: string) {
-    const useCase = new GetDocumentUseCase();
-    const query: GetDocumentQuery = { documentId: id };
+  /**
+   * Upload Document - handles multipart/form-data file upload
+   */
+  static async uploadDocument(file: File, metadataTags?: string[]) {
+    // Read file and create document
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const createCommand = {
+      filename: `${Date.now()}_${file.name}`,
+      originalFilename: file.name,
+      metadataTags: metadataTags || [],
+    };
 
     return Effect.runPromise(
       pipe(
-        useCase.execute(query),
+        useCases.createDocument.execute(createCommand),
         Effect.provide(AppLayer),
-        Effect.mapError((useCaseError) => mapUseCaseErrorToHttpError(useCaseError)),
+        Effect.flatMap((document) =>
+          Effect.tryPromise({
+            try: async () => {
+              const filePath = `./uploads/${document.filename}`;
+              await Bun.write(filePath, buffer);
+              return { document, fileSize: file.size };
+            },
+            catch: (error) => new Error(`Failed to save file: ${error}`),
+          })
+        ),
         Effect.match({
-          onFailure: (httpError: HttpError) => {
-            return {
-              status: httpErrorToStatus(httpError),
-              body: errorResponse(httpError.message),
-            };
-          },
-          onSuccess: (result) => {
-            return {
-              status: 200,
-              body: successResponse({
-                id: result.id,
-                filename: result.filename,
-                // ... map use case result to HTTP response
-              }),
-            };
+          onFailure: (httpError) => ({
+            status: httpErrorToStatus(httpError),
+            body: errorResponse(httpError.message),
+          }),
+          onSuccess: ({ document, fileSize }) => ({
+            status: 201,
+            body: successResponse({ ...document, fileSize }),
+          }),
+        })
+      )
+    );
+  }
+
+  /**
+   * Download Document by Token - returns binary PDF with HTTP headers
+   */
+  static async downloadDocumentByToken(token: string) {
+    return Effect.runPromise(
+      pipe(
+        useCases.downloadByToken.execute({ token }),
+        Effect.provide(AppLayer),
+        Effect.match({
+          onFailure: (httpError) => new Response(
+            JSON.stringify(errorResponse(httpError.message)),
+            { status: httpErrorToStatus(httpError), headers: { "Content-Type": "application/json" } }
+          ),
+          onSuccess: (downloadData) => {
+            const file = Bun.file(downloadData.filePath);
+            return new Response(file, {
+              headers: {
+                "Content-Type": "application/pdf",
+                "Content-Disposition": `attachment; filename="${downloadData.document.originalFilename}"`,
+              },
+            });
           },
         })
       )
@@ -215,15 +258,24 @@ Controllers (map results to HTTP response)
 HTTP Response
 ```
 
-### Example: Get Document by ID
+### Example: Upload Document (HTTP)
 
-1. **HTTP Request**: `GET /documents/123`
-2. **Routes**: Extract `id` from params
-3. **Validation**: Validate UUID format
-4. **Controller**: Map to `GetDocumentQuery` DTO
-5. **Use Case**: Execute `GetDocumentUseCase`
+1. **HTTP Request**: `POST /documents/upload` (multipart/form-data)
+2. **Routes**: Extract `file` and `metadataTags` from body
+3. **Validation**: Validate file type and metadata tags
+4. **Controller**: Read file, create document, save file to disk
+5. **Use Case**: Execute `CreateDocumentUseCase`
 6. **Controller**: Map result to HTTP response
-7. **HTTP Response**: `200 OK` with document data
+7. **HTTP Response**: `201 Created` with document data
+
+### Example: Get Document by ID (oRPC)
+
+1. **oRPC Request**: `POST /rpc/document.getDocument` with `{ documentId: "123" }`
+2. **oRPC Router**: Routes to `document.getDocument` procedure
+3. **Procedure**: Validates input schema, extracts context
+4. **Use Case**: Execute `GetDocumentUseCase`
+5. **Procedure**: Returns result directly (type-safe)
+6. **oRPC Response**: JSON with document data
 
 ## Key Principles
 
@@ -290,33 +342,70 @@ The presentation layer integrates with the application layer through:
 
 ## Example: Complete Flow
 
+### HTTP File Upload Flow
+
 ```typescript
 // 1. Route Definition
-.get("/:id", async ({ params }) => {
-  const validation = validateParams(documentIdParamsSchema, params);
-  if (validation.error) return validation.error.body;
-  return DocumentController.getDocumentById(validation.data.id);
+.post("/upload", async ({ body }) => {
+  const { file, metadataTags } = body;
+  return DocumentController.uploadDocument(file, metadataTags);
 })
 
-// 2. Controller
-static async getDocumentById(id: string) {
-  const useCase = new GetDocumentUseCase();
-  const query: GetDocumentQuery = { documentId: id };
+// 2. Controller (File Operation)
+static async uploadDocument(file: File, metadataTags?: string[]) {
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const createCommand = {
+    filename: `${Date.now()}_${file.name}`,
+    originalFilename: file.name,
+    metadataTags: metadataTags || [],
+  };
   
   return Effect.runPromise(
     pipe(
-      useCase.execute(query),
+      useCases.createDocument.execute(createCommand),
       Effect.provide(AppLayer),
-      Effect.mapError(mapUseCaseErrorToHttpError),
+      Effect.flatMap((document) =>
+        Effect.tryPromise({
+          try: async () => {
+            await Bun.write(`./uploads/${document.filename}`, buffer);
+            return { document, fileSize: file.size };
+          },
+          catch: (error) => new Error(`Failed to save file: ${error}`),
+        })
+      ),
       Effect.match({
-        onFailure: (error) => ({ status: 404, body: errorResponse(error.message) }),
-        onSuccess: (result) => ({ status: 200, body: successResponse(result) }),
+        onFailure: (error) => ({ status: 500, body: errorResponse(error.message) }),
+        onSuccess: ({ document, fileSize }) => ({ status: 201, body: successResponse({ ...document, fileSize }) }),
       })
     )
   );
 }
 
 // 3. Use Case (Application Layer)
+execute(command: CreateDocumentCommand): Effect.Effect<DocumentResult, UseCaseError, DatabaseService> {
+  // Business logic here
+}
+```
+
+### oRPC Get Document Flow
+
+```typescript
+// 1. oRPC Procedure Definition
+export const getDocument = os
+  .input(GetDocumentQuerySchema)
+  .output(DocumentResultSchema)
+  .handler(async ({ input, context }) => {
+    return Effect.runPromise(
+      pipe(
+        useCases.getDocument.execute(input),
+        Effect.provide(AppLayer),
+        Effect.mapError((error) => new Error(error.message))
+      )
+    );
+  });
+
+// 2. Use Case (Application Layer) - same as above
 execute(query: GetDocumentQuery): Effect.Effect<DocumentResult, UseCaseError, DatabaseService> {
   // Business logic here
 }
@@ -326,12 +415,13 @@ execute(query: GetDocumentQuery): Effect.Effect<DocumentResult, UseCaseError, Da
 
 The **Presentation Layer** is responsible for:
 
-- ✅ **HTTP concerns**: Routes, requests, responses
-- ✅ **Request validation**: Validate HTTP request data
-- ✅ **DTO mapping**: Map HTTP requests to application DTOs
+- ✅ **HTTP concerns**: Routes for file operations (upload/download)
+- ✅ **oRPC concerns**: Type-safe RPC procedures for all other operations
+- ✅ **Request validation**: Validate HTTP and oRPC request data
+- ✅ **DTO mapping**: Map HTTP/oRPC requests to application DTOs
 - ✅ **Use case orchestration**: Execute use cases
-- ✅ **Response mapping**: Map use case results to HTTP responses
-- ✅ **Error handling**: Map errors to HTTP errors
+- ✅ **Response mapping**: Map use case results to HTTP/oRPC responses
+- ✅ **Error handling**: Map errors to HTTP/oRPC errors
 
 It should **NOT** contain:
 - ❌ Business logic (that's in the application layer)
