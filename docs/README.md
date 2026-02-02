@@ -6,10 +6,12 @@ This folder contains all project documentation and guides.
 
 ### API & Usage
 - **[API_USAGE_GUIDE.md](./API_USAGE_GUIDE.md)** - Complete guide on how to use all APIs (HTTP and oRPC)
+- **[POSTMAN_QUICK_START.md](./POSTMAN_QUICK_START.md)** - ⭐ **Quick Postman testing guide** (start here!)
 - **[ORPC_USAGE.md](./ORPC_USAGE.md)** - oRPC-specific usage documentation
 - **[TEST_ENDPOINTS.md](./TEST_ENDPOINTS.md)** - Guide for testing endpoints
-- **[POSTMAN_TESTING.md](./POSTMAN_TESTING.md)** - Postman testing guide
+- **[POSTMAN_TESTING.md](./POSTMAN_TESTING.md)** - Detailed Postman testing guide
 - **[POSTMAN_TESTING_COMPLETE.md](./POSTMAN_TESTING_COMPLETE.md)** - Postman testing completion summary
+- **[test-api.ts](./test-api.ts)** - Interactive API testing script (run with `bun docs/test-api.ts`)
 
 ### Architecture
 - **[ARCHITECTURE_BEST_PRACTICES.md](./ARCHITECTURE_BEST_PRACTICES.md)** - Best practices for the hexagonal architecture
@@ -27,4 +29,7 @@ This folder contains all project documentation and guides.
 
 - **Getting Started**: See [API_USAGE_GUIDE.md](./API_USAGE_GUIDE.md) for how to use the APIs
 - **Architecture**: See [ARCHITECTURE_BEST_PRACTICES.md](./ARCHITECTURE_BEST_PRACTICES.md) for architectural guidelines
-- **Testing**: See [POSTMAN_TESTING.md](./POSTMAN_TESTING.md) for API testing
+- **Testing**: 
+  - **Postman**: See [POSTMAN_QUICK_START.md](./POSTMAN_QUICK_START.md) for quick Postman setup
+  - **Script**: Run `bun docs/test-api.ts` for automated API testing
+  - **Detailed**: See [POSTMAN_TESTING.md](./POSTMAN_TESTING.md) for comprehensive Postman guide

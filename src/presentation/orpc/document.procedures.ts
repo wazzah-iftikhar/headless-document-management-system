@@ -17,7 +17,7 @@ import { Schema } from "@effect/schema";
 import { AppLayer } from "../../effect/layers";
 import type { UseCaseError } from "../../application/errors/use-case.errors";
 import { useCases } from "../../application/composition-root";
-import { extractContext } from "./context-extractor";
+import { extractContextAsync } from "./context-extractor";
 import {
   CreateDocumentCommandSchema,
   GetDocumentQuerySchema,
@@ -38,7 +38,12 @@ export const createDocument = os
   .input(CreateDocumentCommandSchema)
   .output(DocumentResultSchema)
   .handler(async ({ input, context }) => {
-    const ctx = extractContext(context.headers || new Headers());
+    try {
+      const ctx = await extractContextAsync(context.headers || new Headers());
+      // Context extracted successfully - can be used for authorization later
+    } catch (error: any) {
+      throw new Error(`Authentication failed: ${error.message}`);
+    }
     
     return Effect.runPromise(
       pipe(
@@ -59,7 +64,12 @@ export const getDocument = os
   .input(GetDocumentQuerySchema)
   .output(DocumentResultSchema)
   .handler(async ({ input, context }) => {
-    const ctx = extractContext(context.headers || new Headers());
+    try {
+      const ctx = await extractContextAsync(context.headers || new Headers());
+      // Context extracted successfully - can be used for authorization later
+    } catch (error: any) {
+      throw new Error(`Authentication failed: ${error.message}`);
+    }
     
     return Effect.runPromise(
       pipe(
@@ -89,7 +99,12 @@ export const listDocuments = os
     totalPages: Schema.Number,
   }))
   .handler(async ({ input, context }) => {
-    const ctx = extractContext(context.headers || new Headers());
+    try {
+      const ctx = await extractContextAsync(context.headers || new Headers());
+      // Context extracted successfully - can be used for authorization later
+    } catch (error: any) {
+      throw new Error(`Authentication failed: ${error.message}`);
+    }
     
     return Effect.runPromise(
       pipe(
@@ -110,7 +125,12 @@ export const updateDocumentMetadata = os
   .input(UpdateDocumentMetadataCommandSchema)
   .output(DocumentResultSchema)
   .handler(async ({ input, context }) => {
-    const ctx = extractContext(context.headers || new Headers());
+    try {
+      const ctx = await extractContextAsync(context.headers || new Headers());
+      // Context extracted successfully - can be used for authorization later
+    } catch (error: any) {
+      throw new Error(`Authentication failed: ${error.message}`);
+    }
     
     return Effect.runPromise(
       pipe(
@@ -138,7 +158,12 @@ export const deleteDocument = os
     documentId: Schema.String,
   }))
   .handler(async ({ input, context }) => {
-    const ctx = extractContext(context.headers || new Headers());
+    try {
+      const ctx = await extractContextAsync(context.headers || new Headers());
+      // Context extracted successfully - can be used for authorization later
+    } catch (error: any) {
+      throw new Error(`Authentication failed: ${error.message}`);
+    }
     
     return Effect.runPromise(
       pipe(
@@ -167,7 +192,12 @@ export const generateDownloadLink = os
   .input(GenerateDownloadLinkQuerySchema)
   .output(DownloadLinkResultSchema)
   .handler(async ({ input, context }) => {
-    const ctx = extractContext(context.headers || new Headers());
+    try {
+      const ctx = await extractContextAsync(context.headers || new Headers());
+      // Context extracted successfully - can be used for authorization later
+    } catch (error: any) {
+      throw new Error(`Authentication failed: ${error.message}`);
+    }
     
     return Effect.runPromise(
       pipe(
@@ -194,7 +224,12 @@ export const downloadByToken = os
   .input(DownloadByTokenQuerySchema)
   .output(DownloadResultSchema)
   .handler(async ({ input, context }) => {
-    const ctx = extractContext(context.headers || new Headers());
+    try {
+      const ctx = await extractContextAsync(context.headers || new Headers());
+      // Context extracted successfully - can be used for authorization later
+    } catch (error: any) {
+      throw new Error(`Authentication failed: ${error.message}`);
+    }
     
     return Effect.runPromise(
       pipe(
