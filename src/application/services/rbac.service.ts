@@ -10,7 +10,7 @@ import { DocumentAccessService } from "../../domain/document-access/document-acc
 import { PermissionAction } from "../../domain/access-policy/value-objects/permission-action.vo";
 import { DatabaseService } from "../../effect/services/database.service";
 import { AuditService, type AuditUserContext } from "./audit.service";
-import { logger } from "../../utils/logger";
+import { logger } from "../../infrastructure/services/logger.service";
 
 /**
  * User Context

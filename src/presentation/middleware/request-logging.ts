@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { getLogger, getCorrelationId } from "./correlation";
-import { startPerformanceTracking } from "../../utils/logger";
+import { startPerformanceTracking } from "../../infrastructure/services/logger.service";
 
 /**
  * Request Logging Middleware

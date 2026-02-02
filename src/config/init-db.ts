@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/bun-sqlite";
 import { sql } from "drizzle-orm";
 import * as schema from "../infrastructure/database/schemas";
 import { migrateUp, loadMigrations } from "../infrastructure/database/migrations/migration-runner";
-import { logger } from "../utils/logger";
+import { logger } from "../infrastructure/services/logger.service";
 
 /**
  * Initialize database schema using migrations

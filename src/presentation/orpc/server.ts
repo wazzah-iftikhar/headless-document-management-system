@@ -6,7 +6,7 @@
 
 import { RPCHandler } from "@orpc/server/fetch";
 import { apiRouter } from "./router";
-import { createLogger, startPerformanceTracking } from "../../utils/logger";
+import { createLogger, startPerformanceTracking } from "../../infrastructure/services/logger.service";
 import { randomUUID } from "crypto";
 
 /**

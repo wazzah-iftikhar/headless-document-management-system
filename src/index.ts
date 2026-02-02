@@ -3,7 +3,7 @@ import { setupRoutes } from "./presentation/routes";
 import { config } from "./config/app";
 import { initDatabase } from "./config/init-db";
 import { handleOrpcRequest } from "./presentation/orpc/server";
-import { logger } from "./utils/logger";
+import { logger } from "./infrastructure/services/logger.service";
 import { correlationMiddleware } from "./presentation/middleware/correlation";
 import { requestLoggingMiddleware } from "./presentation/middleware/request-logging";
 

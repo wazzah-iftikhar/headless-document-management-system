@@ -10,7 +10,7 @@ import { DatabaseService } from "../../effect/services/database.service";
 import { FileSystemService } from "../../effect/services/filesystem.service";
 import { RBACService, type UserContext } from "../services/rbac.service";
 import { PermissionAction } from "../../domain/access-policy/value-objects/permission-action.vo";
-import { logger } from "../../utils/logger";
+import { logger } from "../../infrastructure/services/logger.service";
 import { AuditService, type AuditUserContext } from "../services/audit.service";
 
 /**

@@ -1,13 +1,14 @@
 import { Effect, pipe } from "effect";
-import { ConfigService } from "../effect/services/config.service";
-import { config } from "../config/app"; // Keep for non-migrated functions
-import { ok, err, type Result, tryAsync } from "./result";
+import { ConfigService } from "../../effect/services/config.service";
+import { ok, err, type Result, tryAsync } from "../../utils/result";
 
 /**
- * File utility functions for document operations
- * All functions return Results for functional programming
+ * File Service
+ * 
+ * File utility functions for document operations.
+ * All functions return Effects for functional programming.
  */
-export class FileUtils {
+export class FileService {
   /**
    * Validate file type and size
    * Refactored to use Effect with explicit succeed/fail
@@ -129,4 +130,3 @@ export class FileUtils {
   }
   
 }
-

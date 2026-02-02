@@ -1,8 +1,10 @@
 import { Effect } from "effect";
 
 /**
- * Validation utility functions
- * All functions return Effects for functional programming
+ * Validation Utilities
+ * 
+ * Validation utility functions for application layer.
+ * All functions return Effects for functional programming.
  */
 export class ValidationUtils {
   /**
@@ -16,4 +18,3 @@ export class ValidationUtils {
     return Effect.succeed(searchTags);
   }
 }
-

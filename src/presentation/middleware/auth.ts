@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { JWTService, type JWTPayload } from "../../utils/jwt";
+import { JWTService, type JWTPayload } from "../../infrastructure/services/jwt.service";
 
 /**
  * User Context

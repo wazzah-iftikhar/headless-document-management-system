@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { randomUUID } from "crypto";
-import { createLogger, type Logger } from "../../utils/logger";
+import { createLogger, type Logger } from "../../infrastructure/services/logger.service";
 
 /**
  * Correlation ID Middleware

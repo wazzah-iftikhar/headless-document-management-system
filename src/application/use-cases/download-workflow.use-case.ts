@@ -19,7 +19,7 @@ import type { DocumentDomain } from "../../domain/document/document.entity.schem
 import { DatabaseService } from "../../effect/services/database.service";
 import { ConfigService } from "../../effect/services/config.service";
 import { FileSystemService } from "../../effect/services/filesystem.service";
-import { generateDownloadToken } from "../../utils/token";
+import { generateDownloadToken } from "../../infrastructure/services/token.service";
 
 /**
  * Generate Download Link Use Case

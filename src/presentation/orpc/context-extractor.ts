@@ -1,4 +1,4 @@
-import { JWTService, type JWTPayload } from "../../utils/jwt";
+import { JWTService, type JWTPayload } from "../../infrastructure/services/jwt.service";
 
 /**
  * Request Context for oRPC

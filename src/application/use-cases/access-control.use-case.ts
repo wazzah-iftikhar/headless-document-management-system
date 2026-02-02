@@ -21,7 +21,7 @@ import { PermissionAction } from "../../domain/access-policy/value-objects/permi
 import { DatabaseService } from "../../effect/services/database.service";
 import { randomUUID } from "crypto";
 import { AuditService, type AuditUserContext } from "../services/audit.service";
-import { logger } from "../../utils/logger";
+import { logger } from "../../infrastructure/services/logger.service";
 import type { UserContext } from "../services/rbac.service";
 
 /**

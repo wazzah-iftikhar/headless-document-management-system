@@ -17,7 +17,7 @@ import { DatabaseService } from "../../effect/services/database.service";
 import { RBACService, type UserContext } from "../services/rbac.service";
 import { PermissionAction } from "../../domain/access-policy/value-objects/permission-action.vo";
 import { AuditService, type AuditUserContext } from "../services/audit.service";
-import { logger } from "../../utils/logger";
+import { logger } from "../../infrastructure/services/logger.service";
 
 /**
  * Publish Document Use Case

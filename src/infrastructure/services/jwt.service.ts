@@ -1,5 +1,5 @@
 import jwt from "@elysiajs/jwt";
-import { config } from "../config/app";
+import { config } from "../../config/app";
 
 /**
  * JWT Payload Structure

@@ -1,7 +1,7 @@
 import { Schema } from "@effect/schema";
 import { Effect, Either } from "effect";
 import { errorResponse } from "../utils/response";
-import { logger } from "../../utils/logger";
+import { logger } from "../../infrastructure/services/logger.service";
 
 /**
  * Validate params using Effect Schema
