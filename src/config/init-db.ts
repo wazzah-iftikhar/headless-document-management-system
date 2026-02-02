@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/bun-sqlite";
 import { sql } from "drizzle-orm";
 import * as schema from "../infrastructure/database/schemas";
 import { migrateUp, loadMigrations } from "../infrastructure/database/migrations/migration-runner";
+import { logger } from "../utils/logger";
 
 /**
  * Initialize database schema using migrations
@@ -47,18 +48,26 @@ export async function initDatabase() {
           );
         }
       }
-      console.log("✅ Database already initialized, migrations marked as applied");
+      logger.info("Database already initialized, migrations marked as applied", {
+        operation: "initDatabase",
+        migrationsCount: migrations.length,
+      });
     } else {
       // No tables exist, run migrations normally
       const migrations = await loadMigrations("./drizzle");
       await migrateUp(db, migrations);
-      console.log("✅ Database initialized successfully with migrations");
+      logger.info("Database initialized successfully with migrations", {
+        operation: "initDatabase",
+        migrationsCount: migrations.length,
+      });
     }
 
     // Close the connection (we'll create a new one when needed)
     sqlite.close();
   } catch (error) {
-    console.error("❌ Database initialization failed:", error);
+    logger.error("Database initialization failed", error instanceof Error ? error : new Error(String(error)), {
+      operation: "initDatabase",
+    });
     throw error;
   }
 }

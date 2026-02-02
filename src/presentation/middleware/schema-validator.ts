@@ -1,6 +1,7 @@
 import { Schema } from "@effect/schema";
 import { Effect, Either } from "effect";
 import { errorResponse } from "../utils/response";
+import { logger } from "../../utils/logger";
 
 /**
  * Validate params using Effect Schema
@@ -103,7 +104,10 @@ export const validateResponse = <A, I>(
 ): A => {
   const result = Effect.runSync(Effect.either(Schema.decodeUnknown(schema)(data)));
   if (Either.isLeft(result)) {
-    console.warn("Response validation failed:", result.left);
+    logger.warn("Response validation failed", {
+      error: String(result.left),
+      operation: "validateResponse",
+    });
     return data as A;
   }
   return result.right;

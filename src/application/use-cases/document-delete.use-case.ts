@@ -10,6 +10,7 @@ import { DatabaseService } from "../../effect/services/database.service";
 import { FileSystemService } from "../../effect/services/filesystem.service";
 import { RBACService, type UserContext } from "../services/rbac.service";
 import { PermissionAction } from "../../domain/access-policy/value-objects/permission-action.vo";
+import { logger } from "../../utils/logger";
 
 /**
  * Delete Document Use Case
@@ -85,10 +86,14 @@ export class DeleteDocumentUseCase {
                       catch: (error) => error as Error,
                     })
                   ),
-                  Effect.catchAll((error) => {
-                    console.warn("File deletion warning:", error);
-                    return Effect.succeed(undefined);
-                  }),
+              Effect.catchAll((error) => {
+                logger.warn("File deletion warning", {
+                  error: error instanceof Error ? error.message : String(error),
+                  documentId: validatedCommand.documentId,
+                  operation: "DeleteDocument",
+                });
+                return Effect.succeed(undefined);
+              }),
                   // Step 6: Delete document from repository
                   Effect.flatMap(() =>
                     pipe(
