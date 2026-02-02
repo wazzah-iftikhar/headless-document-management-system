@@ -18,6 +18,7 @@ import { AppLayer } from "../../effect/layers";
 import type { UseCaseError } from "../../application/errors/use-case.errors";
 import { useCases } from "../../application/composition-root";
 import { extractContextAsync } from "./context-extractor";
+import { mapUseCaseErrorToClientError } from "./error-handler";
 import {
   CreateDocumentCommandSchema,
   GetDocumentQuerySchema,
@@ -50,7 +51,7 @@ export const createDocument = os
         useCases.createDocument.execute(input),
         Effect.provide(AppLayer),
         Effect.mapError((error: UseCaseError) => {
-          return new Error(error.message || "Failed to create document");
+          return mapUseCaseErrorToClientError(error);
         })
       )
     );
@@ -76,13 +77,7 @@ export const getDocument = os
         useCases.getDocument.execute(input, userContext),
         Effect.provide(AppLayer),
         Effect.mapError((error: UseCaseError) => {
-          if (error._tag === "DocumentNotFound") {
-            throw new Error(`Document not found: ${error.documentId}`);
-          }
-          if (error._tag === "PermissionDenied") {
-            throw new Error(`Permission denied: ${error.message || "You do not have permission to access this document"}`);
-          }
-          return new Error(error.message || "Failed to get document");
+          throw mapUseCaseErrorToClientError(error);
         })
       )
     );
@@ -114,7 +109,7 @@ export const listDocuments = os
         useCases.listDocuments.execute(input),
         Effect.provide(AppLayer),
         Effect.mapError((error: UseCaseError) => {
-          return new Error(error.message || "Failed to list documents");
+          return mapUseCaseErrorToClientError(error);
         })
       )
     );
@@ -140,13 +135,7 @@ export const updateDocumentMetadata = os
         useCases.updateDocumentMetadata.execute(input, userContext),
         Effect.provide(AppLayer),
         Effect.mapError((error: UseCaseError) => {
-          if (error._tag === "DocumentNotFound") {
-            throw new Error(`Document not found: ${error.documentId}`);
-          }
-          if (error._tag === "PermissionDenied") {
-            throw new Error(`Permission denied: ${error.message || "You do not have permission to update this document"}`);
-          }
-          return new Error(error.message || "Failed to update document");
+          throw mapUseCaseErrorToClientError(error);
         })
       )
     );
@@ -176,13 +165,7 @@ export const deleteDocument = os
         useCases.deleteDocument.execute(input, userContext),
         Effect.provide(AppLayer),
         Effect.mapError((error: UseCaseError) => {
-          if (error._tag === "DocumentNotFound") {
-            throw new Error(`Document not found: ${error.documentId}`);
-          }
-          if (error._tag === "PermissionDenied") {
-            throw new Error(`Permission denied: ${error.message || "You do not have permission to delete this document"}`);
-          }
-          return new Error(error.message || "Failed to delete document");
+          throw mapUseCaseErrorToClientError(error);
         }),
         Effect.map((result) => ({
           success: true,
@@ -213,10 +196,7 @@ export const generateDownloadLink = os
         useCases.generateDownloadLink.execute(input),
         Effect.provide(AppLayer),
         Effect.mapError((error: UseCaseError) => {
-          if (error._tag === "DocumentNotFound") {
-            throw new Error(`Document not found: ${error.documentId}`);
-          }
-          return new Error(error.message || "Failed to generate download link");
+          throw mapUseCaseErrorToClientError(error);
         })
       )
     );
@@ -245,10 +225,7 @@ export const downloadByToken = os
         useCases.downloadByToken.execute(input),
         Effect.provide(AppLayer),
         Effect.mapError((error: UseCaseError) => {
-          if (error._tag === "InvalidUploadToken") {
-            throw new Error(`Invalid or expired download token: ${error.token}`);
-          }
-          return new Error(error.message || "Failed to download document");
+          throw mapUseCaseErrorToClientError(error);
         })
       )
     );

@@ -47,8 +47,10 @@ export class AuditService {
    * @param eventType - Type of event (DOCUMENT_CREATED, DOCUMENT_DELETED, etc.)
    * @param userContext - User context (who performed the action)
    * @param resourceId - Resource ID (document ID, policy ID, etc.)
-   * @param details - Additional details about the operation
+   * @param details - Additional details about the operation (will be sanitized)
    * @param correlationId - Correlation ID for request tracking
+   * 
+   * Note: Details are sanitized to ensure no sensitive data (passwords, tokens, etc.) is stored.
    */
   record(
     eventType: AuditEventType,
@@ -57,6 +59,8 @@ export class AuditService {
     details?: Record<string, unknown>,
     correlationId?: string
   ): Effect.Effect<void, UseCaseError, DatabaseService> {
+    // Sanitize details to remove sensitive information
+    const sanitizedDetails = details ? this.sanitizeDetails(details) : undefined;
     const auditEntry: AuditLogEntry = {
       eventType,
       userId: userContext.userId,
@@ -65,7 +69,7 @@ export class AuditService {
       userRole: userContext.role,
       resourceId,
       resourceType: this.getResourceType(eventType),
-      details: details ? JSON.stringify(details) : undefined,
+      details: sanitizedDetails ? JSON.stringify(sanitizedDetails) : undefined,
       correlationId,
       timestamp: new Date().toISOString(),
     };
@@ -107,6 +111,69 @@ export class AuditService {
       return "user";
     }
     return "unknown";
+  }
+
+  /**
+   * Sanitize audit log details to remove sensitive information
+   * 
+   * Removes passwords, tokens, secrets, and other sensitive data.
+   */
+  private sanitizeDetails(details: Record<string, unknown>): Record<string, unknown> {
+    const sanitized: Record<string, unknown> = {};
+    const sensitiveKeys = [
+      "password",
+      "secret",
+      "token",
+      "key",
+      "credential",
+      "apiKey",
+      "accessToken",
+      "refreshToken",
+      "authorization",
+    ];
+
+    for (const [key, value] of Object.entries(details)) {
+      const lowerKey = key.toLowerCase();
+      if (sensitiveKeys.some((sensitive) => lowerKey.includes(sensitive))) {
+        // Replace sensitive values with [REDACTED]
+        sanitized[key] = "[REDACTED]";
+      } else if (typeof value === "string" && this.containsSensitivePattern(value)) {
+        // Check if value contains sensitive patterns
+        sanitized[key] = this.sanitizeString(value);
+      } else {
+        sanitized[key] = value;
+      }
+    }
+
+    return sanitized;
+  }
+
+  /**
+   * Check if string contains sensitive patterns
+   */
+  private containsSensitivePattern(value: string): boolean {
+    // Check for JWT tokens, API keys, etc.
+    const sensitivePatterns = [
+      /^Bearer\s+/i,
+      /^[A-Za-z0-9_-]{20,}$/, // Long tokens/keys
+      /password/i,
+      /secret/i,
+    ];
+
+    return sensitivePatterns.some((pattern) => pattern.test(value));
+  }
+
+  /**
+   * Sanitize string value
+   */
+  private sanitizeString(value: string): string {
+    // Remove file paths
+    value = value.replace(/\/[^\s]+/g, "[path]");
+    // Remove absolute paths
+    value = value.replace(/[A-Z]:\\[^\s]+/g, "[path]");
+    // Remove tokens
+    value = value.replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED]");
+    return value;
   }
 }
 

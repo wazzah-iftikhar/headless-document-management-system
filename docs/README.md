@@ -24,6 +24,7 @@ This folder contains all project documentation and guides.
 - **[ERROR_HANDLING_REFACTOR.md](./ERROR_HANDLING_REFACTOR.md)** - Error handling refactoring guide
 - **[VALIDATION_GUIDE.md](./VALIDATION_GUIDE.md)** - Validation patterns and guidelines
 - **[APPLICATION_LAYER_ACCEPTANCE.md](./APPLICATION_LAYER_ACCEPTANCE.md)** - Application layer acceptance criteria
+- **[ACCEPTANCE_CRITERIA.md](./ACCEPTANCE_CRITERIA.md)** - ⭐ **Day 9: AuthZ & Observability acceptance criteria verification**
 
 ## 📖 Quick Links
 

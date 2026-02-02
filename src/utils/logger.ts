@@ -100,6 +100,8 @@ export class Logger {
 
   /**
    * Log at error level
+   * 
+   * Note: Stack traces are only logged server-side, never exposed to clients.
    */
   error(message: string, error?: Error, additionalContext?: LogContext): void {
     const errorContext: LogContext = {
@@ -108,7 +110,9 @@ export class Logger {
         ? {
             name: error.name,
             message: error.message,
-            stack: error.stack,
+            // Stack traces are logged server-side only for debugging
+            // They are never exposed to clients
+            stack: process.env.NODE_ENV === "production" ? undefined : error.stack,
           }
         : undefined,
     };
