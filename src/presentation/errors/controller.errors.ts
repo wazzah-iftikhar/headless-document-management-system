@@ -6,6 +6,8 @@ import type { ServiceError } from "../../errors/service.errors";
  */
 export type HttpError =
   | { _tag: "BadRequest"; message: string }
+  | { _tag: "Unauthorized"; message: string }
+  | { _tag: "Forbidden"; message: string }
   | { _tag: "NotFound"; message: string }
   | { _tag: "Conflict"; message: string }
   | { _tag: "Unavailable"; message: string }
@@ -53,6 +55,10 @@ export const httpErrorToStatus = (error: HttpError): number => {
   switch (error._tag) {
     case "BadRequest":
       return 400;
+    case "Unauthorized":
+      return 401;
+    case "Forbidden":
+      return 403;
     case "NotFound":
       return 404;
     case "Conflict":

@@ -64,20 +64,23 @@ export const getDocument = os
   .input(GetDocumentQuerySchema)
   .output(DocumentResultSchema)
   .handler(async ({ input, context }) => {
+    let userContext;
     try {
-      const ctx = await extractContextAsync(context.headers || new Headers());
-      // Context extracted successfully - can be used for authorization later
+      userContext = await extractContextAsync(context.headers || new Headers());
     } catch (error: any) {
       throw new Error(`Authentication failed: ${error.message}`);
     }
     
     return Effect.runPromise(
       pipe(
-        useCases.getDocument.execute(input),
+        useCases.getDocument.execute(input, userContext),
         Effect.provide(AppLayer),
         Effect.mapError((error: UseCaseError) => {
           if (error._tag === "DocumentNotFound") {
             throw new Error(`Document not found: ${error.documentId}`);
+          }
+          if (error._tag === "PermissionDenied") {
+            throw new Error(`Permission denied: ${error.message || "You do not have permission to access this document"}`);
           }
           return new Error(error.message || "Failed to get document");
         })
@@ -125,20 +128,23 @@ export const updateDocumentMetadata = os
   .input(UpdateDocumentMetadataCommandSchema)
   .output(DocumentResultSchema)
   .handler(async ({ input, context }) => {
+    let userContext;
     try {
-      const ctx = await extractContextAsync(context.headers || new Headers());
-      // Context extracted successfully - can be used for authorization later
+      userContext = await extractContextAsync(context.headers || new Headers());
     } catch (error: any) {
       throw new Error(`Authentication failed: ${error.message}`);
     }
     
     return Effect.runPromise(
       pipe(
-        useCases.updateDocumentMetadata.execute(input),
+        useCases.updateDocumentMetadata.execute(input, userContext),
         Effect.provide(AppLayer),
         Effect.mapError((error: UseCaseError) => {
           if (error._tag === "DocumentNotFound") {
             throw new Error(`Document not found: ${error.documentId}`);
+          }
+          if (error._tag === "PermissionDenied") {
+            throw new Error(`Permission denied: ${error.message || "You do not have permission to update this document"}`);
           }
           return new Error(error.message || "Failed to update document");
         })
@@ -158,20 +164,23 @@ export const deleteDocument = os
     documentId: Schema.String,
   }))
   .handler(async ({ input, context }) => {
+    let userContext;
     try {
-      const ctx = await extractContextAsync(context.headers || new Headers());
-      // Context extracted successfully - can be used for authorization later
+      userContext = await extractContextAsync(context.headers || new Headers());
     } catch (error: any) {
       throw new Error(`Authentication failed: ${error.message}`);
     }
     
     return Effect.runPromise(
       pipe(
-        useCases.deleteDocument.execute(input),
+        useCases.deleteDocument.execute(input, userContext),
         Effect.provide(AppLayer),
         Effect.mapError((error: UseCaseError) => {
           if (error._tag === "DocumentNotFound") {
             throw new Error(`Document not found: ${error.documentId}`);
+          }
+          if (error._tag === "PermissionDenied") {
+            throw new Error(`Permission denied: ${error.message || "You do not have permission to delete this document"}`);
           }
           return new Error(error.message || "Failed to delete document");
         }),

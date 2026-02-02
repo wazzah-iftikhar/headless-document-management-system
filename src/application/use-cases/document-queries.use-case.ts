@@ -14,6 +14,8 @@ import type { IDocumentRepository } from "../ports/document.repository.port";
 import { persistenceToDomain } from "../../infrastructure/mappers/document.mapper";
 import type { DocumentDomain } from "../../domain/document/document.entity.schema";
 import { DatabaseService } from "../../effect/services/database.service";
+import { RBACService, type UserContext } from "../services/rbac.service";
+import { PermissionAction } from "../../domain/access-policy/value-objects/permission-action.vo";
 
 /**
  * Get Document Use Case
@@ -35,10 +37,14 @@ import { DatabaseService } from "../../effect/services/database.service";
  * Repository is injected via constructor, following hexagonal architecture.
  */
 export class GetDocumentUseCase {
-  constructor(private readonly documentRepo: IDocumentRepository) {}
+  constructor(
+    private readonly documentRepo: IDocumentRepository,
+    private readonly rbacService: RBACService
+  ) {}
 
   execute(
-    query: GetDocumentQuery
+    query: GetDocumentQuery,
+    userContext: UserContext
   ): Effect.Effect<DocumentResult, UseCaseError, DatabaseService> {
     return pipe(
       // Step 1: Validate query
@@ -48,27 +54,37 @@ export class GetDocumentUseCase {
         field: "query",
         message: String(error),
       } as UseCaseError)),
-      // Step 2: Fetch document
+      // Step 2: Check permission (READ access required)
       Effect.flatMap((validatedQuery) =>
         pipe(
-          this.documentRepo.findById(validatedQuery.documentId),
-          Effect.mapError((repoError) => {
-            if (repoError._tag === "DocumentNotFound") {
-              return {
-                _tag: "DocumentNotFound",
-                documentId: repoError.documentId,
-              } as UseCaseError;
-            }
-            return {
-              _tag: "UseCaseUnknown",
-              operation: "GetDocument",
-              message: `Repository error: ${repoError._tag}`,
-            } as UseCaseError;
-          }),
-          // Step 3: Convert persistence to domain entity
-          Effect.flatMap((persistence) => persistenceToDomain(persistence)),
-          // Step 4: Map domain entity to result DTO
-          Effect.map((domain) => this.domainToResult(domain))
+          this.rbacService.checkPermission(
+            userContext,
+            validatedQuery.documentId,
+            PermissionAction.READ
+          ),
+          // Step 3: Fetch document
+          Effect.flatMap(() =>
+            pipe(
+              this.documentRepo.findById(validatedQuery.documentId),
+              Effect.mapError((repoError) => {
+                if (repoError._tag === "DocumentNotFound") {
+                  return {
+                    _tag: "DocumentNotFound",
+                    documentId: repoError.documentId,
+                  } as UseCaseError;
+                }
+                return {
+                  _tag: "UseCaseUnknown",
+                  operation: "GetDocument",
+                  message: `Repository error: ${repoError._tag}`,
+                } as UseCaseError;
+              }),
+              // Step 4: Convert persistence to domain entity
+              Effect.flatMap((persistence) => persistenceToDomain(persistence)),
+              // Step 5: Map domain entity to result DTO
+              Effect.map((domain) => this.domainToResult(domain))
+            )
+          )
         )
       )
     );

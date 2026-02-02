@@ -8,6 +8,8 @@ import { persistenceToDomain } from "../../infrastructure/mappers/document.mappe
 import type { DocumentDomain } from "../../domain/document/document.entity.schema";
 import { DatabaseService } from "../../effect/services/database.service";
 import { FileSystemService } from "../../effect/services/filesystem.service";
+import { RBACService, type UserContext } from "../services/rbac.service";
+import { PermissionAction } from "../../domain/access-policy/value-objects/permission-action.vo";
 
 /**
  * Delete Document Use Case
@@ -30,11 +32,13 @@ import { FileSystemService } from "../../effect/services/filesystem.service";
  */
 export class DeleteDocumentUseCase {
   constructor(
-    private readonly documentRepo: IDocumentRepository
+    private readonly documentRepo: IDocumentRepository,
+    private readonly rbacService: RBACService
   ) {}
 
   execute(
-    command: DeleteDocumentCommand
+    command: DeleteDocumentCommand,
+    userContext: UserContext
   ): Effect.Effect<DocumentResult, UseCaseError, DatabaseService | FileSystemService> {
     return pipe(
       // Step 1: Validate command
@@ -44,49 +48,59 @@ export class DeleteDocumentUseCase {
         field: "command",
         message: String(error),
       } as UseCaseError)),
-      // Step 2: Fetch document to get file path
+      // Step 2: Check permission (DELETE access required)
       Effect.flatMap((validatedCommand) =>
         pipe(
-          this.documentRepo.findById(validatedCommand.documentId),
-          Effect.mapError((repoError) => {
-            if (repoError._tag === "DocumentNotFound") {
-              return {
-                _tag: "DocumentNotFound",
-                documentId: repoError.documentId,
-              } as UseCaseError;
-            }
-            return {
-              _tag: "UseCaseUnknown",
-              operation: "DeleteDocument",
-              message: `Repository error: ${repoError._tag}`,
-            } as UseCaseError;
-          }),
-          // Step 3: Convert to domain to get file path
-          Effect.flatMap((persistence) => persistenceToDomain(persistence)),
-          // Step 4: Delete file from disk (non-critical - log warning if fails)
-          Effect.flatMap((domain) =>
+          this.rbacService.checkPermission(
+            userContext,
+            validatedCommand.documentId,
+            PermissionAction.DELETE
+          ),
+          // Step 3: Fetch document to get file path
+          Effect.flatMap(() =>
             pipe(
-              FileSystemService,
-              Effect.flatMap((fs) =>
-                Effect.tryPromise({
-                  try: () => fs.delete(domain.fileReference.filePath),
-                  catch: (error) => error as Error,
-                })
-              ),
-              Effect.catchAll((error) => {
-                console.warn("File deletion warning:", error);
-                return Effect.succeed(undefined);
+              this.documentRepo.findById(validatedCommand.documentId),
+              Effect.mapError((repoError) => {
+                if (repoError._tag === "DocumentNotFound") {
+                  return {
+                    _tag: "DocumentNotFound",
+                    documentId: repoError.documentId,
+                  } as UseCaseError;
+                }
+                return {
+                  _tag: "UseCaseUnknown",
+                  operation: "DeleteDocument",
+                  message: `Repository error: ${repoError._tag}`,
+                } as UseCaseError;
               }),
-              // Step 5: Delete document from repository
-              Effect.flatMap(() =>
+              // Step 4: Convert to domain to get file path
+              Effect.flatMap((persistence) => persistenceToDomain(persistence)),
+              // Step 5: Delete file from disk (non-critical - log warning if fails)
+              Effect.flatMap((domain) =>
                 pipe(
-                  this.documentRepo.delete(validatedCommand.documentId),
-                  Effect.mapError((repoError) => ({
-                    _tag: "UseCaseUnknown",
-                    operation: "DeleteDocument",
-                    message: `Failed to delete document: ${repoError._tag}`,
-                  } as UseCaseError)),
-                  Effect.map(() => this.domainToResult(domain))
+                  FileSystemService,
+                  Effect.flatMap((fs) =>
+                    Effect.tryPromise({
+                      try: () => fs.delete(domain.fileReference.filePath),
+                      catch: (error) => error as Error,
+                    })
+                  ),
+                  Effect.catchAll((error) => {
+                    console.warn("File deletion warning:", error);
+                    return Effect.succeed(undefined);
+                  }),
+                  // Step 6: Delete document from repository
+                  Effect.flatMap(() =>
+                    pipe(
+                      this.documentRepo.delete(validatedCommand.documentId),
+                      Effect.mapError((repoError) => ({
+                        _tag: "UseCaseUnknown",
+                        operation: "DeleteDocument",
+                        message: `Failed to delete document: ${repoError._tag}`,
+                      } as UseCaseError)),
+                      Effect.map(() => this.domainToResult(domain))
+                    )
+                  )
                 )
               )
             )

@@ -26,6 +26,7 @@ import { PublishDocumentUseCase, UpdateDocumentMetadataUseCase } from "./use-cas
 import { DeleteDocumentUseCase } from "./use-cases/document-delete.use-case";
 import { GenerateDownloadLinkUseCase, DownloadByTokenUseCase } from "./use-cases/download-workflow.use-case";
 import { ManageAccessPolicyUseCase, CheckPermissionUseCase } from "./use-cases/access-control.use-case";
+import { RBACService } from "./services/rbac.service";
 
 /**
  * Repository Instances (Adapters)
@@ -41,19 +42,30 @@ export const documentVersionRepository = new DocumentVersionRepositoryImpl();
 export const downloadTokenRepository = new DownloadTokenRepositoryImpl();
 
 /**
+ * RBAC Service Instance
+ * 
+ * Service for enforcing Role-Based Access Control in use cases.
+ */
+export const rbacService = new RBACService(
+  documentRepository,
+  userRepository,
+  accessPolicyRepository
+);
+
+/**
  * Use Case Instances
  * 
  * These are wired with their dependencies (repositories) via constructor injection.
  * All use cases depend on ports (interfaces), not adapters (implementations).
  */
 export const createDocumentUseCase = new CreateDocumentUseCase(documentRepository);
-export const getDocumentUseCase = new GetDocumentUseCase(documentRepository);
+export const getDocumentUseCase = new GetDocumentUseCase(documentRepository, rbacService);
 export const listDocumentsUseCase = new ListDocumentsUseCase(documentRepository);
 export const initiateUploadUseCase = new InitiateUploadUseCase(documentRepository);
 export const confirmUploadUseCase = new ConfirmUploadUseCase(documentRepository, documentVersionRepository);
 export const publishDocumentUseCase = new PublishDocumentUseCase(documentRepository);
-export const updateDocumentMetadataUseCase = new UpdateDocumentMetadataUseCase(documentRepository);
-export const deleteDocumentUseCase = new DeleteDocumentUseCase(documentRepository);
+export const updateDocumentMetadataUseCase = new UpdateDocumentMetadataUseCase(documentRepository, rbacService);
+export const deleteDocumentUseCase = new DeleteDocumentUseCase(documentRepository, rbacService);
 export const generateDownloadLinkUseCase = new GenerateDownloadLinkUseCase(documentRepository, downloadTokenRepository);
 export const downloadByTokenUseCase = new DownloadByTokenUseCase(documentRepository, downloadTokenRepository);
 export const manageAccessPolicyUseCase = new ManageAccessPolicyUseCase(documentRepository, accessPolicyRepository);

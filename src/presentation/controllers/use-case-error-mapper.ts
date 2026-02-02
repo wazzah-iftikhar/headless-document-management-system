@@ -22,7 +22,7 @@ export const mapUseCaseErrorToHttpError = (useCaseError: UseCaseError): HttpErro
     case "InvalidStatusTransition":
       return { _tag: "BadRequest", message: `Invalid status transition from ${useCaseError.from} to ${useCaseError.to}` };
     case "PermissionDenied":
-      return { _tag: "NotFound", message: `Permission denied: User ${useCaseError.userId} cannot ${useCaseError.action} document ${useCaseError.documentId}` };
+      return { _tag: "Forbidden", message: `Permission denied: User ${useCaseError.userId} cannot ${useCaseError.action} document ${useCaseError.documentId}` };
     case "ValidationError":
       return { _tag: "BadRequest", message: `Validation error in ${useCaseError.field}: ${useCaseError.message}` };
     case "UseCaseUnknown":

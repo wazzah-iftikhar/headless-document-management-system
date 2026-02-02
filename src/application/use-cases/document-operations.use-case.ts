@@ -14,6 +14,8 @@ import type { IDocumentRepository } from "../ports/document.repository.port";
 import { persistenceToDomain } from "../../infrastructure/mappers/document.mapper";
 import type { DocumentDomain } from "../../domain/document/document.entity.schema";
 import { DatabaseService } from "../../effect/services/database.service";
+import { RBACService, type UserContext } from "../services/rbac.service";
+import { PermissionAction } from "../../domain/access-policy/value-objects/permission-action.vo";
 
 /**
  * Publish Document Use Case
@@ -188,10 +190,14 @@ export class PublishDocumentUseCase {
  * Repository is injected via constructor, following hexagonal architecture.
  */
 export class UpdateDocumentMetadataUseCase {
-  constructor(private readonly documentRepo: IDocumentRepository) {}
+  constructor(
+    private readonly documentRepo: IDocumentRepository,
+    private readonly rbacService: RBACService
+  ) {}
 
   execute(
-    command: UpdateDocumentMetadataCommand
+    command: UpdateDocumentMetadataCommand,
+    userContext: UserContext
   ): Effect.Effect<DocumentResult, UseCaseError, DatabaseService> {
     return pipe(
       // Step 1: Validate command
@@ -201,30 +207,40 @@ export class UpdateDocumentMetadataUseCase {
         field: "command",
         message: String(error),
       } as UseCaseError)),
-      // Step 2: Update document metadata
+      // Step 2: Check permission (WRITE access required)
       Effect.flatMap((validatedCommand) =>
         pipe(
-          this.documentRepo.update(validatedCommand.documentId, {
-            metadataTags: validatedCommand.metadataTags
-              ? JSON.stringify(validatedCommand.metadataTags)
-              : undefined,
-          }),
-          Effect.mapError((repoError) => {
-            if (repoError._tag === "DocumentNotFound") {
-              return {
-                _tag: "DocumentNotFound",
-                documentId: repoError.documentId,
-              } as UseCaseError;
-            }
-            return {
-              _tag: "UseCaseUnknown",
-              operation: "UpdateDocumentMetadata",
-              message: `Repository error: ${repoError._tag}`,
-            } as UseCaseError;
-          }),
-          // Step 3: Convert to result
-          Effect.flatMap((persistence) => persistenceToDomain(persistence)),
-          Effect.map((domain) => this.domainToResult(domain))
+          this.rbacService.checkPermission(
+            userContext,
+            validatedCommand.documentId,
+            PermissionAction.WRITE
+          ),
+          // Step 3: Update document metadata
+          Effect.flatMap(() =>
+            pipe(
+              this.documentRepo.update(validatedCommand.documentId, {
+                metadataTags: validatedCommand.metadataTags
+                  ? JSON.stringify(validatedCommand.metadataTags)
+                  : undefined,
+              }),
+              Effect.mapError((repoError) => {
+                if (repoError._tag === "DocumentNotFound") {
+                  return {
+                    _tag: "DocumentNotFound",
+                    documentId: repoError.documentId,
+                  } as UseCaseError;
+                }
+                return {
+                  _tag: "UseCaseUnknown",
+                  operation: "UpdateDocumentMetadata",
+                  message: `Repository error: ${repoError._tag}`,
+                } as UseCaseError;
+              }),
+              // Step 4: Convert to result
+              Effect.flatMap((persistence) => persistenceToDomain(persistence)),
+              Effect.map((domain) => this.domainToResult(domain))
+            )
+          )
         )
       )
     );
