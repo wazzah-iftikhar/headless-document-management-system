@@ -18,6 +18,7 @@ import { UserRepositoryImpl } from "../infrastructure/repositories/implementatio
 import { AccessPolicyRepositoryImpl } from "../infrastructure/repositories/implementations/access-policy.repository.impl";
 import { DocumentVersionRepositoryImpl } from "../infrastructure/repositories/implementations/document-version.repository.impl";
 import { DownloadTokenRepositoryImpl } from "../infrastructure/repositories/implementations/download-token.repository.impl";
+import { AuditLogRepositoryImpl } from "../infrastructure/repositories/implementations/audit-log.repository.impl";
 
 import { CreateDocumentUseCase } from "./use-cases/create-document.use-case";
 import { GetDocumentUseCase, ListDocumentsUseCase } from "./use-cases/document-queries.use-case";
@@ -27,6 +28,7 @@ import { DeleteDocumentUseCase } from "./use-cases/document-delete.use-case";
 import { GenerateDownloadLinkUseCase, DownloadByTokenUseCase } from "./use-cases/download-workflow.use-case";
 import { ManageAccessPolicyUseCase, CheckPermissionUseCase } from "./use-cases/access-control.use-case";
 import { RBACService } from "./services/rbac.service";
+import { AuditService } from "./services/audit.service";
 
 /**
  * Repository Instances (Adapters)
@@ -40,6 +42,7 @@ export const userRepository = new UserRepositoryImpl();
 export const accessPolicyRepository = new AccessPolicyRepositoryImpl();
 export const documentVersionRepository = new DocumentVersionRepositoryImpl();
 export const downloadTokenRepository = new DownloadTokenRepositoryImpl();
+export const auditLogRepository = new AuditLogRepositoryImpl();
 
 /**
  * RBAC Service Instance
@@ -49,8 +52,16 @@ export const downloadTokenRepository = new DownloadTokenRepositoryImpl();
 export const rbacService = new RBACService(
   documentRepository,
   userRepository,
-  accessPolicyRepository
+  accessPolicyRepository,
+  auditService // Pass audit service for permission denial logging
 );
+
+/**
+ * Audit Service Instance
+ * 
+ * Service for recording audit logs of critical operations.
+ */
+export const auditService = new AuditService(auditLogRepository);
 
 /**
  * Use Case Instances
@@ -64,11 +75,11 @@ export const listDocumentsUseCase = new ListDocumentsUseCase(documentRepository)
 export const initiateUploadUseCase = new InitiateUploadUseCase(documentRepository);
 export const confirmUploadUseCase = new ConfirmUploadUseCase(documentRepository, documentVersionRepository);
 export const publishDocumentUseCase = new PublishDocumentUseCase(documentRepository);
-export const updateDocumentMetadataUseCase = new UpdateDocumentMetadataUseCase(documentRepository, rbacService);
-export const deleteDocumentUseCase = new DeleteDocumentUseCase(documentRepository, rbacService);
+export const updateDocumentMetadataUseCase = new UpdateDocumentMetadataUseCase(documentRepository, rbacService, auditService);
+export const deleteDocumentUseCase = new DeleteDocumentUseCase(documentRepository, rbacService, auditService);
 export const generateDownloadLinkUseCase = new GenerateDownloadLinkUseCase(documentRepository, downloadTokenRepository);
 export const downloadByTokenUseCase = new DownloadByTokenUseCase(documentRepository, downloadTokenRepository);
-export const manageAccessPolicyUseCase = new ManageAccessPolicyUseCase(documentRepository, accessPolicyRepository);
+export const manageAccessPolicyUseCase = new ManageAccessPolicyUseCase(documentRepository, accessPolicyRepository, auditService);
 export const checkPermissionUseCase = new CheckPermissionUseCase(documentRepository, userRepository, accessPolicyRepository);
 
 /**

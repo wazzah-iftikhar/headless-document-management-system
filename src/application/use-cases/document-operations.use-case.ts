@@ -16,6 +16,8 @@ import type { DocumentDomain } from "../../domain/document/document.entity.schem
 import { DatabaseService } from "../../effect/services/database.service";
 import { RBACService, type UserContext } from "../services/rbac.service";
 import { PermissionAction } from "../../domain/access-policy/value-objects/permission-action.vo";
+import { AuditService, type AuditUserContext } from "../services/audit.service";
+import { logger } from "../../utils/logger";
 
 /**
  * Publish Document Use Case
@@ -192,7 +194,8 @@ export class PublishDocumentUseCase {
 export class UpdateDocumentMetadataUseCase {
   constructor(
     private readonly documentRepo: IDocumentRepository,
-    private readonly rbacService: RBACService
+    private readonly rbacService: RBACService,
+    private readonly auditService: AuditService
   ) {}
 
   execute(
@@ -238,7 +241,30 @@ export class UpdateDocumentMetadataUseCase {
               }),
               // Step 4: Convert to result
               Effect.flatMap((persistence) => persistenceToDomain(persistence)),
-              Effect.map((domain) => this.domainToResult(domain))
+              // Step 5: Record audit log
+              Effect.flatMap((domain) =>
+                pipe(
+                  this.auditService.record(
+                    "DOCUMENT_UPDATED",
+                    userContext as AuditUserContext,
+                    validatedCommand.documentId,
+                    {
+                      metadataTags: validatedCommand.metadataTags,
+                      filename: domain.fileReference.filename,
+                    }
+                  ),
+                  Effect.catchAll((error) => {
+                    // Log audit failure but don't fail the operation
+                    logger.warn("Failed to record audit log", {
+                      error: error.message || String(error),
+                      operation: "UpdateDocumentMetadata",
+                      documentId: validatedCommand.documentId,
+                    });
+                    return Effect.succeed(undefined);
+                  }),
+                  Effect.map(() => this.domainToResult(domain))
+                )
+              )
             )
           )
         )

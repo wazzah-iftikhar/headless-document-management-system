@@ -20,6 +20,9 @@ import { DocumentAccessService } from "../../domain/document-access/document-acc
 import { PermissionAction } from "../../domain/access-policy/value-objects/permission-action.vo";
 import { DatabaseService } from "../../effect/services/database.service";
 import { randomUUID } from "crypto";
+import { AuditService, type AuditUserContext } from "../services/audit.service";
+import { logger } from "../../utils/logger";
+import type { UserContext } from "../services/rbac.service";
 
 /**
  * Manage Access Policy Use Case
@@ -45,11 +48,13 @@ import { randomUUID } from "crypto";
 export class ManageAccessPolicyUseCase {
   constructor(
     private readonly documentRepo: IDocumentRepository,
-    private readonly policyRepo: IAccessPolicyRepository
+    private readonly policyRepo: IAccessPolicyRepository,
+    private readonly auditService: AuditService
   ) {}
 
   execute(
-    command: ManageAccessPolicyCommand
+    command: ManageAccessPolicyCommand,
+    userContext: UserContext
   ): Effect.Effect<{ policyId: string; documentId: string }, UseCaseError, DatabaseService> {
     return pipe(
       // Step 1: Validate command
@@ -92,11 +97,36 @@ export class ManageAccessPolicyUseCase {
                 operation: "ManageAccessPolicy",
                 message: `Failed to create policy: ${repoError._tag}`,
               } as UseCaseError)),
-              // Step 4: Return policy ID
-              Effect.map((policy) => ({
-                policyId: policy.id,
-                documentId: validatedCommand.documentId,
-              }))
+              // Step 4: Record audit log
+              Effect.flatMap((policy) =>
+                pipe(
+                  this.auditService.record(
+                    "ACCESS_POLICY_CREATED",
+                    userContext as AuditUserContext,
+                    policy.id,
+                    {
+                      documentId: validatedCommand.documentId,
+                      subjectType: validatedCommand.subjectType,
+                      subjectId: validatedCommand.subjectId,
+                      actions: validatedCommand.actions,
+                      isActive: validatedCommand.isActive,
+                    }
+                  ),
+                  Effect.catchAll((error) => {
+                    // Log audit failure but don't fail the operation
+                    logger.warn("Failed to record audit log", {
+                      error: error.message || String(error),
+                      operation: "ManageAccessPolicy",
+                      policyId: policy.id,
+                    });
+                    return Effect.succeed(undefined);
+                  }),
+                  Effect.map(() => ({
+                    policyId: policy.id,
+                    documentId: validatedCommand.documentId,
+                  }))
+                )
+              )
             )
           )
         )

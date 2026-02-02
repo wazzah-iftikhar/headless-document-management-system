@@ -9,6 +9,8 @@ import { persistenceToDomain as policyPersistenceToDomain } from "../../infrastr
 import { DocumentAccessService } from "../../domain/document-access/document-access.service";
 import { PermissionAction } from "../../domain/access-policy/value-objects/permission-action.vo";
 import { DatabaseService } from "../../effect/services/database.service";
+import { AuditService, type AuditUserContext } from "./audit.service";
+import { logger } from "../../utils/logger";
 
 /**
  * User Context
@@ -34,7 +36,8 @@ export class RBACService {
   constructor(
     private readonly documentRepo: IDocumentRepository,
     private readonly userRepo: IUserRepository,
-    private readonly policyRepo: IAccessPolicyRepository
+    private readonly policyRepo: IAccessPolicyRepository,
+    private readonly auditService?: AuditService // Optional - audit service may not always be available
   ) {}
 
   /**
@@ -114,9 +117,37 @@ export class RBACService {
                   message: `Domain error: ${domainError._tag}`,
                 } as UseCaseError;
               }),
-              // If permission denied, return PermissionDenied error
+              // If permission denied, record audit log and return PermissionDenied error
               Effect.flatMap((hasPermission) => {
                 if (!hasPermission) {
+                  // Record audit log for permission denial (non-blocking)
+                  if (this.auditService) {
+                    this.auditService
+                      .record(
+                        "PERMISSION_DENIED",
+                        userContext as AuditUserContext,
+                        documentId,
+                        {
+                          action: requiredAction,
+                          resourceType: "document",
+                        }
+                      )
+                      .pipe(
+                        Effect.catchAll((error) => {
+                          logger.warn("Failed to record permission denied audit log", {
+                            error: error.message || String(error),
+                            userId: userContext.userId,
+                            documentId,
+                            action: requiredAction,
+                          });
+                          return Effect.succeed(undefined);
+                        }),
+                        Effect.provide(DatabaseService)
+                      )
+                      .then(() => {}) // Fire and forget
+                      .catch(() => {}); // Ignore errors
+                  }
+                  
                   return Effect.fail({
                     _tag: "PermissionDenied",
                     userId: userContext.userId,

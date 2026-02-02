@@ -11,6 +11,7 @@ import { FileSystemService } from "../../effect/services/filesystem.service";
 import { RBACService, type UserContext } from "../services/rbac.service";
 import { PermissionAction } from "../../domain/access-policy/value-objects/permission-action.vo";
 import { logger } from "../../utils/logger";
+import { AuditService, type AuditUserContext } from "../services/audit.service";
 
 /**
  * Delete Document Use Case
@@ -34,7 +35,8 @@ import { logger } from "../../utils/logger";
 export class DeleteDocumentUseCase {
   constructor(
     private readonly documentRepo: IDocumentRepository,
-    private readonly rbacService: RBACService
+    private readonly rbacService: RBACService,
+    private readonly auditService: AuditService
   ) {}
 
   execute(
@@ -103,7 +105,31 @@ export class DeleteDocumentUseCase {
                         operation: "DeleteDocument",
                         message: `Failed to delete document: ${repoError._tag}`,
                       } as UseCaseError)),
-                      Effect.map(() => this.domainToResult(domain))
+                      // Step 7: Record audit log
+                      Effect.flatMap(() =>
+                        pipe(
+                          this.auditService.record(
+                            "DOCUMENT_DELETED",
+                            userContext as AuditUserContext,
+                            validatedCommand.documentId,
+                            {
+                              filename: domain.fileReference.filename,
+                              originalFilename: domain.fileReference.originalFilename,
+                              fileSize: domain.fileSize,
+                            }
+                          ),
+                          Effect.catchAll((error) => {
+                            // Log audit failure but don't fail the operation
+                            logger.warn("Failed to record audit log", {
+                              error: error.message || String(error),
+                              operation: "DeleteDocument",
+                              documentId: validatedCommand.documentId,
+                            });
+                            return Effect.succeed(undefined);
+                          }),
+                          Effect.map(() => this.domainToResult(domain))
+                        )
+                      )
                     )
                   )
                 )
